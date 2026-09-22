@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useAuth } from './AuthProvider';
 
 export interface FactItem {
     id: number;
@@ -11,6 +12,7 @@ export interface FactItem {
     primary_source: string;
     source_url?: string;
     pdf_url?: string;
+    hashtags?: string[] | string;
     published_at: string;
 }
 
@@ -18,6 +20,7 @@ interface FactTabsProps {
     facts: FactItem[];
     loading: boolean;
     onOpenAdminModal: () => void;
+    onOpenEditModal?: (fact: FactItem) => void;
     onDeleteFact?: (id: number) => void;
 }
 
@@ -66,7 +69,22 @@ const getFactVerdict = (factSummary: string) => {
     };
 };
 
-export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFact }: FactTabsProps) {
+const getHashtagList = (tags?: string[] | string): string[] => {
+    if (!tags) return [];
+    if (Array.isArray(tags)) return tags.map((t) => String(t).trim().replace(/^#/, '')).filter(Boolean);
+    if (typeof tags === 'string') {
+        return tags
+            .split(/[\s,]+/)
+            .map((t) => t.trim().replace(/^#/, ''))
+            .filter(Boolean);
+    }
+    return [];
+};
+
+export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditModal, onDeleteFact }: FactTabsProps) {
+    const { user } = useAuth();
+    const isAdmin = user?.displayId === 'iam76men';
+
     const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
     const [adminPassword, setAdminPassword] = useState('');
     const [deleting, setDeleting] = useState(false);
@@ -302,7 +320,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
           <div class="header">
             <div>
               <h1>FactRepo 사실조사 검증보고서</h1>
-              <div style="font-size: 9pt; color: #64748b; margin-top: 4px;">공공데이터 및 1차 사료 교차검증 센터</div>
+              <div style="font-size: 9pt; color: #64748b; margin-top: 4px;">공공데이터 및 AI 팩트 체크 교차검증 센터</div>
             </div>
             <div class="meta">
               문서식별: FR-TOP${index + 1}-${fact.id}<br>
@@ -325,7 +343,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
           </div>
 
           <div class="section">
-            <div class="section-title source-title">3. 1차 사료 및 교차검증 근거</div>
+            <div class="section-title source-title">3. AI 팩트 체크</div>
             <div class="box">${cleanBracketHeader(fact.primary_source) || '기록된 내용이 없습니다.'}${fact.source_url ? '\n\n참조 원문 링크: ' + fact.source_url : ''}</div>
           </div>
 
@@ -355,16 +373,19 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
             });
         }
 
-        // 검색어 필터 (제목, 왜곡 내용, 사실 내용, 1차 사료 검색)
+        // 검색어 필터 (제목, 왜곡 내용, 사실 내용, 1차 사료 검색, 해시태그)
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(
-                (fact) =>
+            const q = searchQuery.toLowerCase().replace(/^#/, '');
+            list = list.filter((fact) => {
+                const tags = getHashtagList(fact.hashtags).map((t) => t.toLowerCase());
+                return (
                     fact.title.toLowerCase().includes(q) ||
                     fact.distortion.toLowerCase().includes(q) ||
                     fact.fact_summary.toLowerCase().includes(q) ||
-                    fact.primary_source.toLowerCase().includes(q)
-            );
+                    fact.primary_source.toLowerCase().includes(q) ||
+                    tags.some((t) => t.includes(q))
+                );
+            });
         }
 
         // 전체 팩트 리포트 노출 (최신순)
@@ -381,7 +402,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                             <span>🏛️</span> 오늘의 검증 팩트 리포트
                         </h3>
                         <p className="text-xs text-neutral-400 mt-1">
-                            핵심 왜곡 프레임을 확인하고, [보고서 보기]를 통해 객관적 사실과 1차 사료를 바로 열람하세요.
+                            핵심 왜곡 프레임을 확인하고, [보고서 보기]를 통해 객관적 사실과 AI 팩트 체크를 바로 열람하세요.
                         </p>
                     </div>
 
@@ -455,7 +476,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                     <p className="text-xs text-neutral-400 mb-4">
                         {selectedDate || searchQuery
                             ? '다른 날짜를 선택하거나 검색어를 변경해 보세요.'
-                            : '시민 검증 의뢰소에서 상위 의혹부터 1차 사료 조사를 거쳐 발행됩니다.'}
+                            : '시민 검증 의뢰소에서 상위 의혹부터 AI 팩트 체크 조사를 거쳐 발행됩니다.'}
                     </p>
                     {(selectedDate || searchQuery) && (
                         <button
@@ -516,6 +537,19 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                                             <span>반론</span>
                                         </Link>
 
+                                        {/* 관리자(iam76men) 리포트 수정 버튼 */}
+                                        {isAdmin && onOpenEditModal && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onOpenEditModal(fact)}
+                                                className="bg-blue-950/70 hover:bg-blue-900/90 text-blue-300 border border-blue-800/80 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition font-semibold cursor-pointer active:scale-95"
+                                                title="관리자 전용 팩트 리포트 정정(수정)"
+                                            >
+                                                <span>✏️</span>
+                                                <span>변경</span>
+                                            </button>
+                                        )}
+
                                         <button
                                             type="button"
                                             onClick={() => handleOpenDeleteModal(fact.id, fact.title)}
@@ -553,6 +587,26 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                                 <p className="text-neutral-200 whitespace-pre-wrap leading-relaxed text-xs sm:text-[13px]">
                                     {cleanBracketHeader(fact.distortion)}
                                 </p>
+
+                                {/* 해시태그 표시 영역 */}
+                                {getHashtagList(fact.hashtags).length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-2.5 border-t border-neutral-800/80 mt-2.5">
+                                        {getHashtagList(fact.hashtags).map((tag, tIdx) => (
+                                            <button
+                                                key={tIdx}
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSearchQuery(tag);
+                                                }}
+                                                className="inline-flex items-center text-[11px] font-medium text-red-300 hover:text-white bg-red-950/60 hover:bg-red-900/70 border border-red-800/60 px-2 py-0.5 rounded-md transition cursor-pointer"
+                                                title={`#${tag} 검색 필터링`}
+                                            >
+                                                #{tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -609,6 +663,20 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                                     <span>문서 식별: FR-TOP{viewingFact.index + 1}-{viewingFact.fact.id}</span>
                                     <span>발행: {new Date(viewingFact.fact.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                                 </div>
+
+                                {/* 모달 내 해시태그 */}
+                                {getHashtagList(viewingFact.fact.hashtags).length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-neutral-700/60">
+                                        {getHashtagList(viewingFact.fact.hashtags).map((tag, tIdx) => (
+                                            <span
+                                                key={tIdx}
+                                                className="text-xs text-red-300 bg-red-950/70 border border-red-800/70 px-2 py-0.5 rounded-md font-medium"
+                                            >
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* 1. 배경 및 쟁점·정황 */}
@@ -643,11 +711,11 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                                 </div>
                             </div>
 
-                            {/* 3. 1차 사료 및 교차검증 근거 */}
+                            {/* 3. AI 팩트 체크 */}
                             <div className="bg-neutral-800/60 border border-blue-800/50 rounded-xl p-4 sm:p-5 space-y-2">
                                 <div className="font-bold text-blue-400 text-xs sm:text-sm flex items-center gap-1.5 pb-2 border-b border-neutral-700/60">
                                     <span>🏛️</span>
-                                    <span>3. 1차 사료 및 교차검증 근거</span>
+                                    <span>3. AI 팩트 체크</span>
                                 </div>
                                 <div className="text-neutral-200 whitespace-pre-wrap leading-relaxed text-xs sm:text-sm font-sans pt-1">
                                     {cleanBracketHeader(viewingFact.fact.primary_source) || '기록된 내용이 없습니다.'}

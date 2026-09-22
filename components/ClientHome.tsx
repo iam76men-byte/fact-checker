@@ -30,6 +30,17 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
 
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+    const [editingFact, setEditingFact] = useState<FactItem | null>(null);
+
+    const handleOpenAdminModal = () => {
+        setEditingFact(null);
+        setIsAdminModalOpen(true);
+    };
+
+    const handleOpenEditModal = (fact: FactItem) => {
+        setEditingFact(fact);
+        setIsAdminModalOpen(true);
+    };
 
     // 투표 저장소 키 결정 (네이버 고유 ID별 격리)
     const getVoteStorageKey = (uid?: string) => uid ? `factrepo_votes_${uid}` : 'factrepo_votes_guest';
@@ -219,7 +230,8 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 <FactTabs
                     facts={facts}
                     loading={false}
-                    onOpenAdminModal={() => setIsAdminModalOpen(true)}
+                    onOpenAdminModal={handleOpenAdminModal}
+                    onOpenEditModal={handleOpenEditModal}
                     onDeleteFact={(deletedId) => {
                         setFacts((prev) => prev.filter((f) => f.id !== deletedId));
                     }}
@@ -293,9 +305,17 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             <AdminFactModal
                 isOpen={isAdminModalOpen}
                 requests={requests}
-                onClose={() => setIsAdminModalOpen(false)}
-                onSuccess={(newFact) => {
-                    setFacts((prev) => [newFact, ...prev]);
+                editingFact={editingFact}
+                onClose={() => {
+                    setIsAdminModalOpen(false);
+                    setEditingFact(null);
+                }}
+                onSuccess={(fact, isEdit) => {
+                    if (isEdit) {
+                        setFacts((prev) => prev.map((f) => (f.id === fact.id ? fact : f)));
+                    } else {
+                        setFacts((prev) => [fact, ...prev]);
+                    }
                 }}
             />
         </div>

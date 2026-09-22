@@ -63,11 +63,17 @@ startxref
 
 export async function POST(req: Request) {
     try {
-        const { title, distortion, fact_summary, primary_source } = await req.json();
+        const { title, distortion, fact_summary, primary_source, hashtags } = await req.json();
 
         if (!title) {
             return NextResponse.json({ error: '제목이 필요합니다.' }, { status: 400 });
         }
+
+        const tagsHtml = Array.isArray(hashtags) && hashtags.length > 0
+            ? `<div style="margin-top: 15px; font-size: 9pt; color: #4b5563;">
+                 <strong>핵심 키워드 태그:</strong> ${hashtags.join(' ')}
+               </div>`
+            : '';
 
         // A4 인쇄 규격의 공식 HTML 보고서 Blob 생성 (브라우저가 PDF로 바로 렌더링/인쇄 가능한 포맷)
         const reportHtml = `<!DOCTYPE html>
@@ -89,13 +95,13 @@ export async function POST(req: Request) {
 </head>
 <body>
   <div class="header">
-    <div><h1>FactRepo 사실조사 검증보고서</h1><div style="font-size: 9pt; color: #555;">공공데이터 및 1차 사료 교차검증 센터</div></div>
+    <div><h1>FactRepo 사실조사 검증보고서</h1><div style="font-size: 9pt; color: #555;">AI 팩트 체크 및 공공데이터 검증 센터</div></div>
     <div style="font-size: 9pt; text-align: right;">발행일: ${new Date().toLocaleDateString('ko-KR')}<br>인증문서 FR-${Date.now().toString().slice(-6)}</div>
   </div>
   <div class="title-box">검증 안건: ${title}</div>
   <div class="section"><div class="section-title" style="color: #b91c1c;">1. 제기된 의혹 및 왜곡 프레임</div><div class="box">${distortion}</div></div>
   <div class="section"><div class="section-title" style="color: #047857;">2. 객관적 핵심 사실 (Fact Summary)</div><div class="box">${fact_summary}</div></div>
-  <div class="section"><div class="section-title" style="color: #1d4ed8;">3. 1차 사료 및 교차검증 근거</div><div class="box">${primary_source}</div></div>
+  <div class="section"><div class="section-title" style="color: #1d4ed8;">3. AI 팩트 체크</div><div class="box">${primary_source}</div>${tagsHtml}</div>
   <div class="footer"><span>FactRepo Public Verification Unit</span><span>본 문서는 공공데이터와 공적 사료에 기반하여 발행되었습니다.</span></div>
 </body>
 </html>`;
