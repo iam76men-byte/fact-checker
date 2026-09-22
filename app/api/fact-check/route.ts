@@ -35,21 +35,60 @@ async function fetchArticleText(url: string): Promise<string> {
     }
 }
 
+// 역사적 사건/숫자 복합어 정규화 (5·18, 5.18 -> 518)
+function normalizeHistoricalTerms(text: string): string {
+    return text
+        .replace(/5[·\.\-\s]18/g, '518')
+        .replace(/4[·\.\-\s]3/g, '43사건')
+        .replace(/3[·\.\-\s]1/g, '31절')
+        .replace(/6[·\.\-\s]25/g, '625전쟁');
+}
+
+// 동사/형용사/용언 종결·연결 어미 판별기
+function isVerbOrAdjective(word: string): boolean {
+    const verbEndings = [
+        '으면', '면', '어도', '아도', '어서', '아서', '여서', '거나', '든지', '더니',
+        '면서', '려고', '도록', '으니', '니까', '는다', 'ㄴ다', '았다', '었다', '였다',
+        '겠다', '한다', '된다', '됐다', '이다', '아냐', '않아', '없다', '있다', '받은',
+        '받는', '받아', '뺏은', '지은', '하는', '되는', '했던', '됐던', '보인다', '알려졌다',
+        '있어', '없어', '않는', '못한', '뺏는다', '지으면', '뺏은'
+    ];
+
+    for (const ending of verbEndings) {
+        if (word.endsWith(ending) && word.length >= ending.length + 1) {
+            // 명사 자체가 해당 글자로 끝나는 예외 단어 목록
+            const nounExceptions = new Set([
+                '라면', '수면', '화면', '지면', '정면', '측면', '후면', '사면', '비대면',
+                '시민', '국민', '주민', '의원', '대변인', '위원장', '대표', '판결', '호도'
+            ]);
+            if (nounExceptions.has(word)) return false;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // 한국어 명사 정제 및 조사/어미 제거 헬퍼
 function cleanKoreanNoun(word: string): string | null {
-    if (!word || word.length < 2) return null;
+    if (!word) return null;
 
-    // 따옴표나 괄호 제거
-    word = word.replace(/^[‘'“"(\[]+|[’'”")\]]+$/g, '');
+    // 순수 숫자(18, 1, 2) 제외하되, 역사적 키워드 518, 625, 43은 허용
+    if (/^\d+$/.test(word)) {
+        if (word === '518' || word === '625' || word === '43') return word;
+        return null;
+    }
+    if (word.length < 2) return null;
+
+    // 따옴표나 괄호 등 기호 제거
+    word = word.replace(/^[‘'“"(\[<]+|[’'”")\]>]+$/g, '');
 
     // 조사 및 어미 제거 패턴 (긴 접미사부터 매칭)
     const particleSuffixes = [
         '누군가에게', '에게서는', '에서는', '에게서', '에게는', '에게도',
         '으로는', '으로써', '로서의', '에서의', '으로의', '에서는',
         '에게', '에서', '으로', '로써', '로서', '과의', '와의',
-        '이나', '이나마', '지만', '면서', '려고', '도록', '은커녕',
-        '하고', '하며', '하여', '했다', '된다', '한다', '됐다',
-        '받은', '받는', '받아', '있는', '없는', '없다', '있다', '않는', '않은',
+        '이나', '이나마', '지만', '은커녕',
         '에는', '에도', '까지', '부터', '마다', '처럼', '만큼',
         '은', '는', '이', '가', '을', '를', '의', '에', '로', '와', '과', '도', '만'
     ];
@@ -61,14 +100,21 @@ function cleanKoreanNoun(word: string): string | null {
         }
     }
 
-    return word.length >= 2 ? word : null;
+    // 조사 제거 후 동사/형용사 판별
+    if (isVerbOrAdjective(word)) return null;
+
+    // 순수 숫자인지 재확인 (518, 625 제외)
+    if (/^\d+$/.test(word) && word !== '518' && word !== '625' && word !== '43') return null;
+    if (word.length < 2) return null;
+
+    return word;
 }
 
 // 텍스트 기반 5대 핵심 해시태그 스마트 추출기 (형태소/도메인 지능형 알고리즘)
 function extractSmartHashtags(title: string, distortion: string, primarySource: string): string[] {
-    const fullText = `${title} ${distortion} ${primarySource}`;
+    const fullText = normalizeHistoricalTerms(`${title} ${distortion} ${primarySource}`);
 
-    // 1. 제외할 불용어 (동사, 형용사, 대명사, 일반 추상어, 접속사)
+    // 1. 제외할 불용어 (시간부사, 동사, 형용사, 대명사, 일반 추상어, 접속사)
     const stopWords = new Set([
         '대한', '관련', '통해', '이용', '위해', '경우', '사실', '내용', '확인', '결과',
         '제시', '판정', '검증', '사료', '근거', '주장', '제기', '의혹', '이유', '때문',
@@ -77,16 +123,20 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         '이를', '하지만', '그러나', '그리고', '또한', '함께', '가장', '매우', '결국',
         '바로', '그대로', '원문', '자료', '측면', '단계', '자체', '수단', '포함', '제외',
         '기준', '비해', '대해', '있으며', '있으나', '있고', '이며', '아니라', '아닌',
-        '하는', '하지', '하면', '하고', '보아', '가까운', '드러나면서', '다뤄졌습니다',
-        '따르면', '따라', '의한', '위한', '대통령', '공무원', '사람', '것이다', '것으로'
+        '보아', '가까운', '드러나면서', '다뤄졌습니다', '따르면', '따라', '의한', '위한',
+        '대통령', '사람', '것이다', '것으로', '진실', '아냐', '가능성', '있어', '요약',
+        '프레임', '실제', '판결문', '역사적', '공인한', '피고', '탄핵하기', '가정',
+        '판단', '왜곡한', '것입니다', '정황', '발언', '보도', '요지', '사안', '활동',
+        '배경', '쟁점', '핵심', '호도'
     ]);
 
     // 2. 가중치를 부여할 핵심 법률/사법/사건/인물 도메인 키워드
     const domainBonusKeywords = [
+        '518', '북한간첩', '간첩', '북한군', '지만원', '광주고법', '허위호도',
+        '한동훈', '이재명', '농지', '농지법', '경자유전', '처분명령', '농사', '재반박',
         '뇌물', '뇌물죄', '단순수뢰', '수뢰', '알선수재', '알선수재죄', '공동정범', '제3자뇌물', '제3자뇌물수수',
         '직무관련성', '대가성', '청탁금지법', '김영란법', '경제적공동체', '포괄적권한', '신고의무', '신분범',
-        '김건희', '최재영', '윤석열', '한동훈', '이재명', '특가법', '공소시효', '수사의무', '기소', '불기소', '구속',
-        '국정농단', '선거법', '공직선거법', '허위사실', '명예훼손', '무고죄', '정치자금법', '배임', '횡령'
+        '김건희', '최재영', '윤석열', '특가법', '공소시효', '수사의무', '기소', '불기소', '구속'
     ];
 
     const freqMap = new Map<string, number>();
@@ -99,20 +149,30 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         if (!cleaned || stopWords.has(cleaned)) continue;
 
         let weight = 1;
-        // 도메인 핵심어 보너스 (+4)
-        if (domainBonusKeywords.some(k => cleaned === k || cleaned.includes(k))) {
-            weight += 4;
+        // 도메인 핵심어 보너스 (+6)
+        if (domainBonusKeywords.some((k) => cleaned === k || cleaned.includes(k))) {
+            weight += 6;
         }
         // 전문 용어 길이 보너스 (3글자 이상: 알선수재, 직무관련성 등)
-        if (cleaned.length >= 4) {
-            weight += 2;
+        if (cleaned.length >= 3) {
+            weight += 1;
         }
 
         freqMap.set(cleaned, (freqMap.get(cleaned) || 0) + weight);
     }
 
-    // 4. 제목(Title)에 등장하는 단어는 최우선 가중치 (+10)
-    const titleTokens = title.match(/[가-힣a-zA-Z0-9]{2,15}/g) || [];
+    // 4. 괄호 안에 있는 인물/단어 가중치: 피고(지만원) -> 지만원 (+8)
+    const bracketMatches = fullText.match(/\(([가-힣a-zA-Z0-9]{2,10})\)/g) || [];
+    for (const b of bracketMatches) {
+        const inside = b.replace(/[()]/g, '');
+        const cleaned = cleanKoreanNoun(inside);
+        if (cleaned && !stopWords.has(cleaned)) {
+            freqMap.set(cleaned, (freqMap.get(cleaned) || 0) + 8);
+        }
+    }
+
+    // 5. 제목(Title)에 등장하는 단어는 최우선 가중치 (+10)
+    const titleTokens = normalizeHistoricalTerms(title).match(/[가-힣a-zA-Z0-9]{2,15}/g) || [];
     for (const raw of titleTokens) {
         const cleaned = cleanKoreanNoun(raw);
         if (cleaned && !stopWords.has(cleaned)) {
@@ -120,7 +180,7 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         }
     }
 
-    // 5. 따옴표나 강조 기호('...') 안에 있는 단어 가중치 (+5)
+    // 6. 따옴표나 강조 기호('...') 안에 있는 단어 가중치 (+5)
     const quoteMatches = fullText.match(/['"‘“]([가-힣a-zA-Z0-9]{2,15})['"’”]/g) || [];
     for (const q of quoteMatches) {
         const word = q.replace(/['"‘“’”]/g, '');
@@ -132,7 +192,7 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
 
     // 빈도 및 가중치 순 정렬
     const sorted = [...freqMap.entries()]
-        .filter(([word]) => !stopWords.has(word) && word.length >= 2)
+        .filter(([word]) => !stopWords.has(word) && word.length >= 2 && (!/^\d+$/.test(word) || word === '518'))
         .sort((a, b) => b[1] - a[1]);
 
     // 중복 및 부분 포함 단어 정제 (예: '뇌물'과 '뇌물죄' 중 더 구체적인 키워드 우선)
@@ -236,10 +296,11 @@ export async function POST(req: Request) {
 1. 반드시 관리자가 제출한 AI 팩트 체크의 구체적인 내용, 판결/법리, 수치, 결론을 정확하게 반영하세요.
 2. 서두에는 반드시 판정 결론 [사실 / 대체로 사실 / 절반의 사실 / 대체로 사실 아님 / 사실 아님] 중 1차 사료에 가장 부합하는 것을 명시하고 핵심 요약을 1~2문장으로 서술하세요.
 3. 구체적인 사실 대조와 법리/통계적 근거를 바탕으로 3가지 항목(• 객관적 팩트 및 데이터 대조, • 공식 기록 및 규정/절차, • 맥락 및 실체적 진실)으로 나누어 일목요연하게 작성하세요.
-4. [해시태그 5개 추출 필수 지침]:
-   - '받은', '없다', '있는', '누군가에게', '하는', '대통령' 같은 단순 동사, 형용사, 조사, 어미 및 흔한 일반어는 절대로 해시태그로 추출하지 마세요.
-   - 반드시 해당 사건의 본질을 대변하는 핵심 명사 키워드(예: 인물명, 사건명, 구체적 죄명, 핵심 법리, 법률명 등)로만 정확히 5개를 선별하세요.
-   - 예시: ["#김건희", "#뇌물죄", "#직무관련성", "#공동정범", "#알선수재죄"] 또는 ["#청탁금지법", "#경제적공동체", "#제3자뇌물수수", "#디올백", "#단순수뢰"]
+4. [해시태그 5개 추출 필수 지침 (매우 중요)]:
+   - '당시', '이후', '현재', '최근', '초기' 같은 시간/시점 일반 부사는 절대 해시태그로 추출하지 마세요.
+   - '18', '20' 등 불완전한 단순 숫자는 금지하며, 맥락상 5·18인 경우 '#518'로 완전한 명사형으로 작성하세요.
+   - '지으면', '뺏는다', '받은', '없다', '있는', '누군가에게', '하는' 같은 동사/형용사/어미 결합 형태는 절대 금지합니다.
+   - 반드시 사건과 사법적 쟁점을 대변하는 핵심 명사(예: #518, #북한간첩, #지만원, #광주고법, #농지, #한동훈 등)로만 정확히 5개를 선별하세요.
 5. 제목이나 항목 외 불필요한 서두 인삿말은 생략하세요.
 
 - 검증 안건 제목: "${title}"
@@ -252,7 +313,7 @@ ${trimmedSource}
 반드시 아래 JSON 포맷으로만 답변하세요:
 {
   "fact_summary": "(검증 판정 결론: [판정 결과] AI 팩트 체크 분석에 따른 핵심 요약)\\n\\n• 객관적 팩트 및 데이터 대조: (구체적 사실관계 요약)\\n• 공식 기록 및 규정/절차: (법령, 헌법, 판결문, 공문서 등 절차적 적법성 확인 내용)\\n• 맥락 및 실체적 진실: (규명하는 실체적 진실)",
-  "hashtags": ["#핵심키워드1", "#핵심키워드2", "#핵심키워드3", "#핵심키워드4", "#핵심키워드5"]
+  "hashtags": ["#핵심명사1", "#핵심명사2", "#핵심명사3", "#핵심명사4", "#핵심명사5"]
 }
 `;
                 try {

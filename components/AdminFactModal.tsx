@@ -146,7 +146,11 @@ export default function AdminFactModal({
                 setFactSummary(data.fact_summary);
             }
             if (Array.isArray(data.hashtags) && data.hashtags.length > 0) {
-                setHashtags(data.hashtags);
+                setHashtags(
+                    data.hashtags
+                        .map((t: string) => String(t).replace(/^#/, '').trim())
+                        .filter(Boolean)
+                );
             }
         } catch (err: any) {
             alert('AI 팩트 체크 기반 사실 요약 실패: ' + err.message);
