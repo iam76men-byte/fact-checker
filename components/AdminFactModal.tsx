@@ -27,6 +27,7 @@ export default function AdminFactModal({
 
     const [submitting, setSubmitting] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
+    const [adminPassword, setAdminPassword] = useState('');
 
     if (!isOpen) return null;
 
@@ -235,6 +236,19 @@ export default function AdminFactModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // 발행 요청 전 암호 입력 확인
+        if (!adminPassword) {
+            alert('관리자 암호를 입력해주세요.');
+            return;
+        }
+
+        // 관리자 암호 검증 (삭제 API와 동일한 환경변수 키 대조)
+        if (!adminPassword || adminPassword !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+            alert('관리자 암호가 일치하지 않습니다.');
+            return;
+        }
+
         if (!title.trim() || !distortion.trim() || !factSummary.trim() || !primarySource.trim()) {
             alert('모든 필수 항목을 입력해주세요.');
             return;
@@ -264,7 +278,7 @@ export default function AdminFactModal({
         }
 
         // 2. facts 테이블에 pdf_url과 함께 영구 저장
-        const { data, error } = await supabase
+        const { data: insertData, error: insertError } = await supabase
             .from('facts')
             .insert([
                 {
@@ -281,13 +295,13 @@ export default function AdminFactModal({
 
         setSubmitting(false);
 
-        if (error) {
-            alert('팩트 리포트 저장 실패: ' + error.message);
+        if (insertError) {
+            alert('팩트 리포트 저장 실패: ' + insertError.message);
             return;
         }
 
-        if (data && data.length > 0) {
-            onSuccess(data[0]);
+        if (insertData && insertData.length > 0) {
+            onSuccess(insertData[0]);
             onClose();
         }
     };
@@ -436,6 +450,19 @@ export default function AdminFactModal({
                         >
                             {submitting ? '발행 중...' : '팩트 리포트 발행하기'}
                         </button>
+                    </div>
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                            관리자 암호
+                        </label>
+                        <input
+                            type="password"
+                            placeholder="관리자 암호를 입력하세요"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                            required
+                        />
                     </div>
                 </form>
             </div>
