@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { RequestItem } from './RequestList';
 
@@ -19,10 +19,8 @@ export default function RequestModal({
 }: RequestModalProps) {
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (!isOpen) return null;
 
@@ -33,32 +31,8 @@ export default function RequestModal({
         setUploading(true);
         let uploadedImageUrl: string | null = null;
 
-        // 1. 사용자가 수동으로 파일을 직접 첨부한 경우
-        if (selectedFile) {
-            setUploadStatus('첨부 이미지 업로드 중...');
-            const fileExt = selectedFile.name.split('.').pop();
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-            const filePath = `uploads/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('fact_images')
-                .upload(filePath, selectedFile);
-
-            if (uploadError) {
-                alert('이미지 업로드 실패: ' + uploadError.message);
-                setUploading(false);
-                setUploadStatus('');
-                return;
-            }
-
-            const { data: publicUrlData } = supabase.storage
-                .from('fact_images')
-                .getPublicUrl(filePath);
-
-            uploadedImageUrl = publicUrlData.publicUrl;
-        } 
-        // 2. 수동 첨부 파일이 없지만 기사 URL이 입력된 경우 -> 자동 화면 캡처 실행!
-        else if (newUrl.trim()) {
+        // 기사 URL이 입력된 경우 -> 실제 뉴스 화면 자동 캡처 및 영구 보존 실행
+        if (newUrl.trim()) {
             setUploadStatus('📸 기사 화면을 자동 캡처하여 증거 보존 중...');
             try {
                 const captureRes = await fetch('/api/capture-screenshot', {
@@ -107,7 +81,6 @@ export default function RequestModal({
             onSuccess(data[0]);
             setNewTitle('');
             setNewUrl('');
-            setSelectedFile(null);
             onClose();
         }
     };
@@ -150,50 +123,9 @@ export default function RequestModal({
                             onChange={(e) => setNewUrl(e.target.value)}
                             className="w-full bg-neutral-900 border border-neutral-700 rounded p-2 text-sm text-white focus:outline-none focus:border-red-500"
                         />
-                        <p className="text-[11px] text-neutral-400 mt-1">
+                        <p className="text-[11px] text-neutral-400 mt-1 leading-relaxed">
                             💡 기사 링크를 입력하시면 <strong className="text-neutral-300">실제 뉴스 화면이 자동으로 캡처</strong>되어 증거로 영구 보존됩니다.
                         </p>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-medium text-neutral-300 mb-1">
-                            캡처 이미지 직접 첨부 (선택)
-                        </label>
-                        <div className="flex items-center gap-3">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                ref={fileInputRef}
-                                onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                        setSelectedFile(e.target.files[0]);
-                                    }
-                                }}
-                                className="hidden"
-                                id="file-upload"
-                            />
-                            <label
-                                htmlFor="file-upload"
-                                className="cursor-pointer px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-neutral-200 text-xs font-medium rounded border border-neutral-600 transition"
-                            >
-                                📁 파일 선택
-                            </label>
-                            <span className="text-xs text-neutral-400 truncate max-w-[200px]">
-                                {selectedFile ? selectedFile.name : '선택된 파일 없음'}
-                            </span>
-                            {selectedFile && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedFile(null);
-                                        if (fileInputRef.current) fileInputRef.current.value = '';
-                                    }}
-                                    className="text-xs text-red-400 hover:underline"
-                                >
-                                    삭제
-                                </button>
-                            )}
-                        </div>
                     </div>
 
                     {uploading && uploadStatus && (
@@ -209,16 +141,15 @@ export default function RequestModal({
                             disabled={uploading}
                             onClick={() => {
                                 onClose();
-                                setSelectedFile(null);
                             }}
-                            className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-neutral-200 text-xs rounded"
+                            className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-neutral-200 text-xs rounded transition cursor-pointer"
                         >
                             취소
                         </button>
                         <button
                             type="submit"
                             disabled={uploading}
-                            className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-neutral-600 text-white text-xs font-semibold rounded flex items-center gap-1.5 cursor-pointer"
+                            className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-neutral-600 text-white text-xs font-semibold rounded flex items-center gap-1.5 transition cursor-pointer"
                         >
                             {uploading ? '처리 중...' : '등록하기'}
                         </button>
