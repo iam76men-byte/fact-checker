@@ -28,10 +28,38 @@ export default function AdminFactModal({
     const [submitting, setSubmitting] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
     const [adminPassword, setAdminPassword] = useState('');
+    const [summarizingEvidence, setSummarizingEvidence] = useState(false);
 
     if (!isOpen) return null;
 
-    // 의뢰글을 변경할 때 기존 입력값을 깨끗이 비워주는 로직 추가
+    // 왜곡 쟁점 AI 초안 생성 헬퍼
+    const generateDistortionOnly = async (targetTitle: string, targetUrl: string) => {
+        if (!targetTitle.trim()) return;
+        setGeneratingAI(true);
+        try {
+            const res = await fetch('/api/fact-check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: targetTitle.trim(),
+                    source_url: targetUrl.trim(),
+                    mode: 'draft',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data) {
+                setDistortion(data.distortion || '');
+                setPrimarySource(''); // 1차 사료는 사용자가 직접 입력하도록 비워둠
+                setFactSummary(data.fact_summary || '');
+            }
+        } catch (e) {
+            console.warn('의뢰 선택 시 왜곡 쟁점 자동 생성 오류:', e);
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
+
+    // 의뢰글을 선택하면 왜곡 쟁점을 AI가 즉시 자동 생성하고, 1차 사료는 비워둠
     const handleSelectRequest = (reqIdStr: string) => {
         if (!reqIdStr) {
             setSelectedReqId('');
@@ -47,11 +75,46 @@ export default function AdminFactModal({
         const target = requests.find((r) => r.id === id);
         if (target) {
             setTitle(target.title);
-            setSourceUrl(target.source_url || '');
-            // 새로운 의뢰를 골랐으므로 기존 입력 칸들을 깨끗하게 리셋
-            setDistortion('');
-            setFactSummary('');
-            setPrimarySource('');
+            const targetUrl = target.source_url || '';
+            setSourceUrl(targetUrl);
+            setPrimarySource(''); // 1차 사료 비워두기
+
+            // AI로 왜곡된 주장/쟁점 즉시 자동 생성
+            generateDistortionOnly(target.title, targetUrl);
+        }
+    };
+
+    // 1차 사료 교차검증 근거를 바탕으로 핵심 사실(Fact) 및 판정 요약 생성
+    const handleSummarizeEvidence = async () => {
+        if (!primarySource.trim()) {
+            alert('먼저 아래 [1차 사료 / 교차검증 근거]에 판결문, 공문서, 통계, 공적 브리핑 등 검증 내용을 입력해주세요.');
+            return;
+        }
+
+        setSummarizingEvidence(true);
+        try {
+            const res = await fetch('/api/fact-check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: title.trim(),
+                    distortion: distortion.trim(),
+                    primary_source: primarySource.trim(),
+                    source_url: sourceUrl.trim(),
+                    mode: 'summarize_source',
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '요약 생성 실패');
+
+            if (data.fact_summary) {
+                setFactSummary(data.fact_summary);
+            }
+        } catch (err: any) {
+            alert('1차 사료 기반 사실 요약 실패: ' + err.message);
+        } finally {
+            setSummarizingEvidence(false);
         }
     };
 
@@ -61,35 +124,13 @@ export default function AdminFactModal({
             return;
         }
 
-        setGeneratingAI(true);
-        try {
-            const res = await fetch('/api/fact-check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: title.trim(),
-                    source_url: sourceUrl.trim(),
-                }),
-            });
-
-            const text = await res.text();
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch {
-                throw new Error(`서버 응답 오류 (상태코드 ${res.status})`);
-            }
-
-            if (!res.ok) throw new Error(data.error || 'AI 응답 실패');
-
-            setDistortion(data.distortion || '');
-            setFactSummary(data.fact_summary || '');
-            setPrimarySource(data.primary_source || '');
-        } catch (err: any) {
-            alert('AI 초안 생성 실패: ' + err.message);
-        } finally {
-            setGeneratingAI(false);
+        // 만약 1차 사료가 이미 입력되어 있다면 1차 사료 기반 사실 요약까지 종합 수행
+        if (primarySource.trim()) {
+            await handleSummarizeEvidence();
+            return;
         }
+
+        await generateDistortionOnly(title, sourceUrl);
     };
 
     // 브라우저 기본 PDF 변환기 호출 (공식 보고서 A4 양식 레이아웃)
@@ -386,15 +427,15 @@ export default function AdminFactModal({
                             <span>PDF 보고서</span>
                         </button>
 
-                        {/* AI 1차 초안 생성 버튼 */}
+                        {/* AI 초안 생성 버튼 */}
                         <button
                             type="button"
                             onClick={handleGenerateAI}
-                            disabled={generatingAI || !title.trim()}
-                            className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 transition shadow"
+                            disabled={generatingAI || summarizingEvidence || !title.trim()}
+                            className="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 transition shadow cursor-pointer"
                         >
-                            <span>{generatingAI ? '⏳' : '🤖'}</span>
-                            <span>{generatingAI ? 'AI 분석 중...' : 'AI 1차 초안 생성'}</span>
+                            <span>{generatingAI || summarizingEvidence ? '⏳' : '🤖'}</span>
+                            <span>{generatingAI ? '왜곡 쟁점 분석 중...' : summarizingEvidence ? '사료 기반 요약 중...' : 'AI 초안 생성'}</span>
                         </button>
                         <span className="text-xs bg-neutral-700/80 text-neutral-300 px-2 py-1.5 rounded border border-neutral-600">
                             검증팀
@@ -478,14 +519,28 @@ export default function AdminFactModal({
                     </div>
 
                     <div>
-                        <label className="block font-medium text-neutral-300 mb-1">🏛️ 1차 사료 / 교차검증 근거 *</label>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
+                            <label className="font-semibold text-neutral-200 flex items-center gap-1.5">
+                                <span>🏛️</span> 1차 사료 / 교차검증 근거 (관리자 직접 제출) *
+                            </label>
+                            <button
+                                type="button"
+                                onClick={handleSummarizeEvidence}
+                                disabled={summarizingEvidence || !primarySource.trim()}
+                                className="self-start sm:self-auto px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white text-[11px] font-bold rounded shadow transition flex items-center gap-1.5 cursor-pointer"
+                                title="입력된 1차 사료를 바탕으로 [확인된 핵심 사실]을 AI가 정밀 요약 및 판정합니다"
+                            >
+                                <span>{summarizingEvidence ? '⏳' : '✨'}</span>
+                                <span>{summarizingEvidence ? '사료 기반 사실 요약 중...' : '1차 사료 기반 핵심 사실 요약 생성'}</span>
+                            </button>
+                        </div>
                         <textarea
                             required
-                            rows={3}
-                            placeholder="예: 관련 법령 및 직제 규정, 국회 회의록, 공공기관 정보공개 답변서, 국가통계포털 원천 수치 등"
+                            rows={4}
+                            placeholder="예: 법원 판결문 원문, 법령 조항, 공공기관 답변서, 국가통계 원천 수치 등 실제 교차검증 근거를 입력하세요. 입력 후 위의 [✨ 1차 사료 기반 핵심 사실 요약 생성] 버튼을 누르면 사실 요약이 완성됩니다."
                             value={primarySource}
                             onChange={(e) => setPrimarySource(e.target.value)}
-                            className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-red-500"
+                            className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
                         />
                     </div>
 
