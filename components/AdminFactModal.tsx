@@ -43,12 +43,12 @@ export default function AdminFactModal({
             setFactSummary(editingFact.fact_summary || '');
             setPrimarySource(editingFact.primary_source || '');
             setSourceUrl(editingFact.source_url || '');
-            const initialTags = Array.isArray(editingFact.hashtags)
+            const rawTags = Array.isArray(editingFact.hashtags)
                 ? editingFact.hashtags
                 : typeof editingFact.hashtags === 'string' && editingFact.hashtags
-                    ? editingFact.hashtags.split(',').map(t => t.trim())
+                    ? editingFact.hashtags.split(/[\s,]+/)
                     : [];
-            setHashtags(initialTags);
+            setHashtags(rawTags.map((t: string) => String(t).trim().replace(/^#/, '')).filter(Boolean));
         } else {
             setSelectedReqId('');
             setTitle('');
@@ -172,17 +172,16 @@ export default function AdminFactModal({
 
     // 해시태그 추가/삭제 헬퍼
     const handleAddCustomTag = () => {
-        const raw = customTagInput.trim();
+        const raw = customTagInput.trim().replace(/^#/, '');
         if (!raw) return;
-        const formatted = raw.startsWith('#') ? raw : `#${raw}`;
-        if (!hashtags.includes(formatted)) {
-            setHashtags([...hashtags, formatted]);
+        if (!hashtags.includes(raw)) {
+            setHashtags([...hashtags, raw]);
         }
         setCustomTagInput('');
     };
 
     const handleRemoveTag = (tagToRemove: string) => {
-        setHashtags(hashtags.filter(t => t !== tagToRemove));
+        setHashtags(hashtags.filter((t) => t !== tagToRemove));
     };
 
     // 브라우저 기본 PDF 변환기 호출 (공식 보고서 A4 양식 레이아웃)
@@ -397,6 +396,10 @@ export default function AdminFactModal({
             console.warn('PDF 보고서 연동 건너뜀:', e);
         }
 
+        const cleanHashtags = hashtags
+            .map((t) => String(t).replace(/^#/, '').trim())
+            .filter(Boolean);
+
         const factPayload: any = {
             title: title.trim(),
             distortion: distortion.trim(),
@@ -404,7 +407,7 @@ export default function AdminFactModal({
             primary_source: primarySource.trim(),
             source_url: sourceUrl.trim() || null,
             pdf_url: generatedPdfUrl,
-            hashtags: hashtags,
+            hashtags: cleanHashtags,
         };
 
         if (editingFact) {
@@ -416,7 +419,7 @@ export default function AdminFactModal({
                 .select();
 
             // 만약 hashtags 컬럼이 아직 DB에 없을 때 fallback 재시도
-            if (updateError && updateError.message.includes('hashtags')) {
+            if (updateError && updateError.message && updateError.message.includes('hashtags')) {
                 console.warn('DB에 hashtags 컬럼 미존재 감지, hashtags 제외 후 재시도');
                 delete factPayload.hashtags;
                 const retry = await supabase
@@ -435,10 +438,18 @@ export default function AdminFactModal({
                 return;
             }
 
-            if (updateData && updateData.length > 0) {
-                onSuccess({ ...updateData[0], hashtags }, true);
-                onClose();
+            if (!updateData || updateData.length === 0) {
+                alert(
+                    '⚠️ 팩트 리포트 수정이 DB에 반영되지 않았습니다.\n\n' +
+                    '[원인]\nSupabase 데이터베이스의 Row Level Security (RLS) 정책에서 "facts" 테이블의 UPDATE 권한이 허용되어 있지 않습니다.\n\n' +
+                    '[해결 방법]\nSupabase 대시보드 -> SQL Editor 에서 schema_hashtags.sql 파일의 UPDATE 정책 쿼리를 실행해 주시면 즉시 정상 작동합니다.'
+                );
+                return;
             }
+
+            alert('팩트 리포트가 성공적으로 수정되었습니다.');
+            onSuccess({ ...updateData[0], hashtags: cleanHashtags }, true);
+            onClose();
         } else {
             // [신규 발행 모드]
             factPayload.request_id = selectedReqId ? selectedReqId : null;
@@ -449,7 +460,7 @@ export default function AdminFactModal({
                 .select();
 
             // 만약 hashtags 컬럼이 아직 DB에 없을 때 fallback 재시도
-            if (insertError && insertError.message.includes('hashtags')) {
+            if (insertError && insertError.message && insertError.message.includes('hashtags')) {
                 console.warn('DB에 hashtags 컬럼 미존재 감지, hashtags 제외 후 재시도');
                 delete factPayload.hashtags;
                 const retry = await supabase
@@ -468,7 +479,8 @@ export default function AdminFactModal({
             }
 
             if (insertData && insertData.length > 0) {
-                onSuccess({ ...insertData[0], hashtags }, false);
+                alert('새 팩트 리포트가 성공적으로 발행되었습니다.');
+                onSuccess({ ...insertData[0], hashtags: cleanHashtags }, false);
                 onClose();
             }
         }
@@ -646,7 +658,7 @@ export default function AdminFactModal({
                                             key={tag}
                                             className="inline-flex items-center gap-1 bg-neutral-800 text-emerald-400 border border-emerald-800/60 px-2.5 py-1 rounded-full text-xs font-semibold shadow-xs"
                                         >
-                                            <span>{tag}</span>
+                                            <span>#{tag}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveTag(tag)}
