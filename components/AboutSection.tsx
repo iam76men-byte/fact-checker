@@ -54,6 +54,29 @@ export default function AboutSection() {
                 </div>
             </div>
 
+            {/* 시민 검증 의뢰·투표 시스템 및 개인정보 보호 원칙 */}
+            <div className="bg-neutral-800/80 border border-emerald-900/60 rounded-xl p-6 space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center justify-center text-sm font-bold">
+                        🔒
+                    </span>
+                    <h3 className="text-sm font-bold text-white">
+                        시민 검증 의뢰·투표 시스템 및 개인정보 보호 원칙
+                    </h3>
+                </div>
+                <div className="space-y-2.5 text-xs text-neutral-300 leading-relaxed pl-1 md:pl-9">
+                    <p>
+                        • <strong className="text-neutral-100">실제 사람(Human) 증명 및 여론 조작 방지</strong>: 시민 검증 의뢰소의 새 의뢰 작성과 추천·비추천 투표는 악의적인 매크로나 다중 계정(Bot)에 의한 순위 조작을 원천 차단하고, <strong>실제 시민임을 증명하기 위해 네이버 아이디로 로그인</strong>하여 이용하도록 설계되어 있습니다.
+                    </p>
+                    <p>
+                        • <strong className="text-neutral-100">개인정보 비저장·미이용 원칙</strong>: FactRepo는 공익 목적의 독립 아카이브로서 이용자의 어떠한 개인정보도 저장하거나 영리적·정치적 목적으로 이용하지 않습니다. 오직 중복 투표 방지와 최소한의 작성자 식별을 위한 아이디 연동 외에 <strong>실명, 전화번호, 이메일, 생년월일 등 일체의 개인정보는 본 사이트 데이터베이스에 저장되지 않습니다.</strong>
+                    </p>
+                    <p>
+                        • <strong className="text-neutral-100">누구나 자유로운 무로그인 열람권</strong>: 발표된 모든 검증 리포트, 공적 1차 사료, 검증 의뢰 현황, 시민 반론 등 사이트 내 모든 공개 데이터는 <strong>로그인 없이 누구나 100% 자유롭게 열람</strong>하실 수 있습니다.
+                    </p>
+                </div>
+            </div>
+
             {/* 검증 방법론 (Methodology) 5단계 */}
             <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 space-y-5">
                 <div className="border-b border-neutral-700 pb-3">
@@ -74,6 +97,7 @@ export default function AboutSection() {
                             <h4 className="font-bold text-neutral-100 text-sm">안건 선정 및 의혹 정의 (Fact Definition)</h4>
                             <p className="text-neutral-400 mt-1 leading-relaxed">
                                 시민 검증 의뢰소에서 추천 수(공감도)가 높은 안건 및 사회적 파급력이 큰 논란을 우선 선정합니다.
+                                (※ 검증 의뢰는 실제 시민임을 입증하기 위해 네이버 아이디 연동이 필요하며 개인정보는 저장되지 않습니다.)
                                 의혹의 출처, 최초 발언자, 유포 경위를 추적하고 검증해야 할 핵심 쟁점을 구체적으로 특정합니다.
                             </p>
                         </div>
