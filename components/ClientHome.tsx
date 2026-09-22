@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { supabase } from '../lib/supabase';
 import RequestList, { RequestItem } from './RequestList';
 import FactTabs, { FactItem } from './FactTabs';
@@ -181,7 +182,19 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <Link
+                        href="/rebuttals"
+                        className="flex items-center gap-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-700/80 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer hover:scale-105 active:scale-95"
+                        title="시민 반론(이의제기) 게시판으로 이동"
+                    >
+                        <span>⚖️</span>
+                        <span>반론 게시판</span>
+                        <span className="bg-amber-500 text-black text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                            NEW
+                        </span>
+                    </Link>
+
                     <div className="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg text-xs">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
                         <span className="text-neutral-300 font-medium">
@@ -221,6 +234,17 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 >
                     검증 의뢰소 ({requests.length})
                 </button>
+                <Link
+                    href="/rebuttals"
+                    className="shrink-0 whitespace-nowrap px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 text-amber-300 hover:text-amber-200 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/70 active:scale-95"
+                    title="시민 반론 게시판 바로가기"
+                >
+                    <span>⚖️</span>
+                    <span>시민 반론 게시판</span>
+                    <span className="bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                        NEW
+                    </span>
+                </Link>
                 <button
                     type="button"
                     onClick={() => setTab('about')}
