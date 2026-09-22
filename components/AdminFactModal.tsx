@@ -112,110 +112,165 @@ export default function AdminFactModal({
         <meta charset="utf-8">
         <title>FactRepo 검증보고서 - ${title}</title>
         <style>
-          @page { size: A4; margin: 20mm; }
+          @page {
+            size: A4 portrait;
+            margin: 15mm;
+          }
+          * {
+            box-sizing: border-box;
+          }
           body {
-            font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", sans-serif;
-            color: #111;
-            background: #fff;
-            line-height: 1.6;
-            font-size: 11pt;
+            font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+            color: #1e293b;
+            background: #f8fafc;
+            line-height: 1.7;
             margin: 0;
-            padding: 10px;
+            padding: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .paper {
+            background: white;
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            border-radius: 8px;
           }
           .header {
-            border-bottom: 2px solid #111;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
           }
           .header h1 {
-            font-size: 18pt;
+            font-size: 19pt;
             margin: 0;
             font-weight: 800;
+            color: #dc2626;
             letter-spacing: -0.5px;
           }
-          .header .meta {
+          .meta {
             font-size: 9pt;
-            color: #555;
+            color: #64748b;
             text-align: right;
+            line-height: 1.5;
           }
           .report-title {
-            background: #f4f4f5;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-left: 5px solid #dc2626;
-            padding: 12px 16px;
+            padding: 16px 20px;
             font-size: 13pt;
             font-weight: 700;
-            margin-bottom: 24px;
+            margin-bottom: 26px;
+            border-radius: 0 6px 6px 0;
+            line-height: 1.55;
+            color: #0f172a;
           }
           .section {
-            margin-bottom: 20px;
+            margin-bottom: 26px;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .section-title {
             font-size: 11pt;
             font-weight: 700;
-            margin-bottom: 6px;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #ddd;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1.5px solid #e2e8f0;
+            display: flex;
+            align-items: center;
           }
-          .distortion-title { color: #b91c1c; }
-          .fact-title { color: #047857; }
-          .source-title { color: #1d4ed8; }
+          .distortion-title { color: #dc2626; }
+          .fact-title { color: #059669; }
+          .source-title { color: #2563eb; }
           .box {
-            background: #fafafa;
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            padding: 12px 14px;
+            background: #fafafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 16px 20px;
             white-space: pre-wrap;
             font-size: 10pt;
-            line-height: 1.65;
+            line-height: 1.8;
+            color: #334155;
+            word-break: keep-all;
+            letter-spacing: -0.2px;
           }
           .footer {
-            margin-top: 30px;
-            padding-top: 10px;
-            border-top: 1px dashed #ccc;
+            margin-top: 40px;
+            padding-top: 14px;
+            border-top: 1px dashed #cbd5e1;
             font-size: 8.5pt;
-            color: #777;
+            color: #64748b;
             display: flex;
             justify-content: space-between;
+          }
+
+          @media print {
+            body {
+              background: white !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            .paper {
+              margin: 0 !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              max-width: 100% !important;
+              border-radius: 0 !important;
+            }
+            .section {
+              page-break-inside: avoid;
+              break-inside: avoid;
+              margin-bottom: 22px !important;
+            }
+            .box {
+              padding: 14px 18px !important;
+              line-height: 1.75 !important;
+              background: #fbfbfd !important;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          <div>
-            <h1>FactRepo 사실조사 검증보고서</h1>
-            <div style="font-size: 9pt; color: #666; margin-top: 2px;">공공데이터 및 1차 사료 교차검증 센터</div>
+        <div class="paper">
+          <div class="header">
+            <div>
+              <h1>FactRepo 사실조사 검증보고서</h1>
+              <div style="font-size: 9pt; color: #64748b; margin-top: 4px;">공공데이터 및 1차 사료 교차검증 센터</div>
+            </div>
+            <div class="meta">
+              문서번호: FR-${Date.now().toString().slice(-6)}<br>
+              발행일자: ${new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
           </div>
-          <div class="meta">
-            문서번호: FR-${Date.now().toString().slice(-6)}<br>
-            발행일자: ${new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+          <div class="report-title">
+            검증 안건: ${title}
           </div>
-        </div>
 
-        <div class="report-title">
-          검증 안건: ${title}
-        </div>
+          <div class="section">
+            <div class="section-title distortion-title">1. 배경 및 쟁점·정황</div>
+            <div class="box">${distortion || '기록된 내용이 없습니다.'}</div>
+          </div>
 
-        <div class="section">
-          <div class="section-title distortion-title">1. 제기된 의혹 및 왜곡 프레임 (대가 수수 / 청탁 의혹)</div>
-          <div class="box">${distortion || '내용 없음'}</div>
-        </div>
+          <div class="section">
+            <div class="section-title fact-title">2. 객관적 핵심 사실 (Fact Summary)</div>
+            <div class="box">${factSummary || '기록된 내용이 없습니다.'}</div>
+          </div>
 
-        <div class="section">
-          <div class="section-title fact-title">2. 객관적 핵심 사실 (Fact Summary)</div>
-          <div class="box">${factSummary || '내용 없음'}</div>
-        </div>
+          <div class="section">
+            <div class="section-title source-title">3. 1차 사료 및 교차검증 근거</div>
+            <div class="box">${primarySource || '기록된 내용이 없습니다.'}${sourceUrl ? '\n\n참조 원문 링크: ' + sourceUrl : ''}</div>
+          </div>
 
-        <div class="section">
-          <div class="section-title source-title">3. 1차 사료 및 교차검증 근거</div>
-          <div class="box">${primarySource || '내용 없음'}${sourceUrl ? '\n\n참조 링크: ' + sourceUrl : ''}</div>
-        </div>
-
-        <div class="footer">
-          <span>FactRepo Public Verification Unit</span>
-          <span>본 문서는 공공데이터와 공적 기록물에 기반하여 작성되었습니다.</span>
+          <div class="footer">
+            <span>FactRepo Public Verification Unit</span>
+            <span>본 문서는 공공데이터와 공적 기록물에 기반하여 작성되었습니다.</span>
+          </div>
         </div>
 
         <script>
@@ -384,7 +439,7 @@ export default function AdminFactModal({
                         <input
                             type="text"
                             required
-                            placeholder="예: '○○사업 대가성 수수 의혹' 검증 결과"
+                            placeholder="예: '○○ 정책 집행률 0% 주장' 사실관계 검증"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:outline-none focus:border-red-500"
@@ -400,7 +455,7 @@ export default function AdminFactModal({
                             <textarea
                                 required
                                 rows={7}
-                                placeholder="수수 대가 의혹 및 청탁 내용 요약"
+                                placeholder="예: 제기된 의혹의 핵심 요지 및 사실과 다른 과장·왜곡 프레임"
                                 value={distortion}
                                 onChange={(e) => setDistortion(e.target.value)}
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-red-500 font-mono text-[11px]"
@@ -414,7 +469,7 @@ export default function AdminFactModal({
                             <textarea
                                 required
                                 rows={7}
-                                placeholder="【핵심 사실 요약】 및 대가성/청탁 실행 여부 세부 검증 결과"
+                                placeholder="예: 공문서, 통계 데이터, 일시·행위 대조를 통해 확인된 객관적 사실 및 검증 결론"
                                 value={factSummary}
                                 onChange={(e) => setFactSummary(e.target.value)}
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
@@ -427,7 +482,7 @@ export default function AdminFactModal({
                         <textarea
                             required
                             rows={3}
-                            placeholder="예: 공공기관 정보공개청구 원문, 국회 회의록 제○호, 전자관보 고시 제○○호 등"
+                            placeholder="예: 관련 법령 및 직제 규정, 국회 회의록, 공공기관 정보공개 답변서, 국가통계포털 원천 수치 등"
                             value={primarySource}
                             onChange={(e) => setPrimarySource(e.target.value)}
                             className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-red-500"

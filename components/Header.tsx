@@ -13,7 +13,7 @@ export default function Header({ nickname, onResetIdentity }: HeaderProps) {
                     FactRepo <span className="text-red-500 text-sm font-normal">Live</span>
                 </h1>
                 <p className="text-neutral-400 text-sm mt-1">
-                    공공데이터 기반 실전 팩트체크 & 탄약 보급소
+                    공공데이터 및 공적 기록물 기반 공익 팩트체크 아카이브
                 </p>
             </div>
 
