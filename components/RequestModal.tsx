@@ -6,6 +6,7 @@ import { RequestItem } from './RequestList';
 
 interface RequestModalProps {
     isOpen: boolean;
+    citizneID?: string;
     onClose: () => void;
     onSuccess: (newItem: RequestItem) => void;
 }

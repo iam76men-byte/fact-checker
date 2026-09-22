@@ -94,8 +94,8 @@ export async function POST(req: Request) {
   </div>
   <div class="title-box">검증 안건: ${title}</div>
   <div class="section"><div class="section-title" style="color: #b91c1c;">1. 제기된 의혹 및 왜곡 프레임</div><div class="box">${distortion}</div></div>
-  <div class="section"><div class="section-title" style="color: #047857;">2. 객관적 핵심 사실 (Fact Summary)</div><div class="box">${factSummary}</div></div>
-  <div class="section"><div class="section-title" style="color: #1d4ed8;">3. 1차 사료 및 교차검증 근거</div><div class="box">${primarySource}</div></div>
+  <div class="section"><div class="section-title" style="color: #047857;">2. 객관적 핵심 사실 (Fact Summary)</div><div class="box">${fact_summary}</div></div>
+  <div class="section"><div class="section-title" style="color: #1d4ed8;">3. 1차 사료 및 교차검증 근거</div><div class="box">${primary_source}</div></div>
   <div class="footer"><span>FactRepo Public Verification Unit</span><span>본 문서는 공공데이터와 공적 사료에 기반하여 발행되었습니다.</span></div>
 </body>
 </html>`;

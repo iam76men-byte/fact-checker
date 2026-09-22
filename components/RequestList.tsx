@@ -1,5 +1,7 @@
 'use client';
 
+export interface RequestItem { ... }
+
 interface RequestItem {
     id: number;
     title: string;
@@ -13,18 +15,14 @@ interface RequestItem {
 interface RequestListProps {
     requests: RequestItem[];
     loading: boolean;
+    citizenID?: String;
     userVotes: Record<number, 'up' | 'down'>;
     onVote: (id: number, type: 'up' | 'down') => void;
     onOpenModal: () => void;
 }
 
-export default function RequestList({
-    requests,
-    loading,
-    userVotes,
-    onVote,
-    onOpenModal,
-}: RequestListProps) {
+export default function RequestList({ requests, loading, userVotes, onVote, onOpenModal }: RequestListProps) {
+
     const sortedRequests = [...requests].sort((a, b) => {
         const scoreA = (a.upvotes ?? 0) - (a.downvotes ?? 0);
         const scoreB = (b.upvotes ?? 0) - (b.downvotes ?? 0);
@@ -73,10 +71,10 @@ export default function RequestList({
                                     </span>
                                     <span
                                         className={`text-xs font-semibold px-2 py-0.5 rounded border ${netScore > 0
-                                                ? 'text-red-400 bg-red-950/40 border-red-900/60'
-                                                : netScore < 0
-                                                    ? 'text-blue-400 bg-blue-950/40 border-blue-900/60'
-                                                    : 'text-neutral-400 bg-neutral-900 border-neutral-700'
+                                            ? 'text-red-400 bg-red-950/40 border-red-900/60'
+                                            : netScore < 0
+                                                ? 'text-blue-400 bg-blue-950/40 border-blue-900/60'
+                                                : 'text-neutral-400 bg-neutral-900 border-neutral-700'
                                             }`}
                                     >
                                         {netScore > 0 ? `+${netScore}` : netScore}
@@ -126,8 +124,8 @@ export default function RequestList({
                                     <button
                                         onClick={() => onVote(req.id, 'up')}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${myVote === 'up'
-                                                ? 'bg-red-950/80 border-red-500 text-red-300 ring-1 ring-red-500'
-                                                : 'bg-neutral-900/90 hover:bg-red-950/40 border-neutral-700 hover:border-red-600/70 text-neutral-400'
+                                            ? 'bg-red-950/80 border-red-500 text-red-300 ring-1 ring-red-500'
+                                            : 'bg-neutral-900/90 hover:bg-red-950/40 border-neutral-700 hover:border-red-600/70 text-neutral-400'
                                             }`}
                                     >
                                         <span className="text-xs">찬성</span>
@@ -139,8 +137,8 @@ export default function RequestList({
                                     <button
                                         onClick={() => onVote(req.id, 'down')}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${myVote === 'down'
-                                                ? 'bg-blue-950/80 border-blue-500 text-blue-300 ring-1 ring-blue-500'
-                                                : 'bg-neutral-900/90 hover:bg-blue-950/40 border-neutral-700 hover:border-blue-600/70 text-neutral-400'
+                                            ? 'bg-blue-950/80 border-blue-500 text-blue-300 ring-1 ring-blue-500'
+                                            : 'bg-neutral-900/90 hover:bg-blue-950/40 border-neutral-700 hover:border-blue-600/70 text-neutral-400'
                                             }`}
                                     >
                                         <span className="text-xs">반대</span>

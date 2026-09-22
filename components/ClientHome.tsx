@@ -126,7 +126,7 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                     loading={false}
                     citizenId={citizenId}
                     onOpenModal={() => setIsRequestModalOpen(true)}
-                    onVoteUpdate={(reqId, up, down) => {
+                    onVoteUpdate={(reqId: any, up: any, down: any) => {
                         setRequests((prev) =>
                             prev.map((r) =>
                                 r.id === reqId ? { ...r, upvotes: up, downvotes: down } : r
