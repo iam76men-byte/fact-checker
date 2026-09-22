@@ -94,13 +94,13 @@ export default function RebuttalModal({
         } else {
             setSelectedFactId(initialFactId || (facts.length > 0 ? facts[0].id : ''));
             setTitle('');
-            setAuthorName(defaultAuthorName || '시민/당사자');
+            setAuthorName('');
             setContent('');
             setPassword('');
             setSelectedFile(null);
             setFileError('');
         }
-    }, [isOpen, editingItem, initialFactId, facts, defaultAuthorName]);
+    }, [isOpen, editingItem, initialFactId, facts]);
 
     if (!isOpen) return null;
 
@@ -124,6 +124,10 @@ export default function RebuttalModal({
         e.preventDefault();
         if (!selectedFactId) {
             alert('반론을 제기할 대상 팩트 안건을 선택해주세요.');
+            return;
+        }
+        if (!authorName.trim()) {
+            alert('작성자 / 소속을 입력해주세요. (빈 칸으로 둘 수 없습니다)');
             return;
         }
         if (!title.trim() || !content.trim() || !password.trim()) {
@@ -161,7 +165,7 @@ export default function RebuttalModal({
                 formData.append('fact_id', String(selectedFactId));
                 formData.append('fact_title', currentFact?.title || '팩트 안건');
                 formData.append('fact_verdict', verdictText || '검증 완료');
-                formData.append('author_name', authorName.trim() || '시민/당사자');
+                formData.append('author_name', authorName.trim());
                 formData.append('title', title.trim());
                 formData.append('content', content.trim());
                 formData.append('password', password.trim());
@@ -254,11 +258,12 @@ export default function RebuttalModal({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-1">
                             <label className="block font-medium text-neutral-300 mb-1">
-                                작성자 / 소속
+                                작성자 / 소속 *
                             </label>
                             <input
                                 type="text"
-                                placeholder="시민, 당사자, 관계자 등"
+                                required
+                                placeholder="예: 일반 시민, 사건 당사자, 관계자 등"
                                 value={authorName}
                                 onChange={(e) => setAuthorName(e.target.value)}
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs focus:outline-none focus:border-red-500"

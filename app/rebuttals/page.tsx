@@ -451,7 +451,6 @@ function RebuttalsContent() {
                 facts={facts}
                 initialFactId={targetFactId}
                 editingItem={editingItem}
-                defaultAuthorName={user ? `네이버(${user.maskedId})` : '시민/당사자'}
                 onClose={() => {
                     setIsModalOpen(false);
                     setEditingItem(null);
