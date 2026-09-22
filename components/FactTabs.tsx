@@ -373,18 +373,14 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             });
         }
 
-        // 검색어 필터 (제목, 왜곡 내용, 사실 내용, 1차 사료 검색, 해시태그)
+        // 검색어 필터 (사용자 요청: 제목과 해시태그만으로 검색)
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().replace(/^#/, '');
+            const q = searchQuery.trim().toLowerCase().replace(/^#/, '');
             list = list.filter((fact) => {
+                const matchTitle = fact.title.toLowerCase().includes(q);
                 const tags = getHashtagList(fact.hashtags).map((t) => t.toLowerCase());
-                return (
-                    fact.title.toLowerCase().includes(q) ||
-                    fact.distortion.toLowerCase().includes(q) ||
-                    fact.fact_summary.toLowerCase().includes(q) ||
-                    fact.primary_source.toLowerCase().includes(q) ||
-                    tags.some((t) => t.includes(q))
-                );
+                const matchHashtags = tags.some((t) => t.includes(q));
+                return matchTitle || matchHashtags;
             });
         }
 
@@ -412,8 +408,8 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="의혹/키워드 검색..."
-                                className="w-full sm:w-44 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-red-500"
+                                placeholder="제목 또는 #해시태그 검색..."
+                                className="w-full sm:w-48 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-red-500"
                             />
                             {searchQuery && (
                                 <button
