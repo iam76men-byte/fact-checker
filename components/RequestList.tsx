@@ -129,8 +129,9 @@ export default function RequestList({
 
                                 <div className="flex items-center gap-2 shrink-0">
                                     <button
+                                        type="button"
                                         onClick={() => onVote(req.id, 'up')}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${myVote === 'up'
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition cursor-pointer active:scale-95 ${myVote === 'up'
                                             ? 'bg-red-950/80 border-red-500 text-red-300 ring-1 ring-red-500'
                                             : 'bg-neutral-900/90 hover:bg-red-950/40 border-neutral-700 hover:border-red-600/70 text-neutral-400'
                                             }`}
@@ -142,8 +143,9 @@ export default function RequestList({
                                     </button>
 
                                     <button
+                                        type="button"
                                         onClick={() => onVote(req.id, 'down')}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition ${myVote === 'down'
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition cursor-pointer active:scale-95 ${myVote === 'down'
                                             ? 'bg-blue-950/80 border-blue-500 text-blue-300 ring-1 ring-blue-500'
                                             : 'bg-neutral-900/90 hover:bg-blue-950/40 border-neutral-700 hover:border-blue-600/70 text-neutral-400'
                                             }`}

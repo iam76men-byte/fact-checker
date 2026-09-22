@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import RequestList, { RequestItem } from './RequestList';
 import FactTabs, { FactItem } from './FactTabs';
 import RequestModal from './RequestModal';
@@ -18,6 +19,8 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
 
     const [facts, setFacts] = useState<FactItem[]>(initialFacts);
     const [requests, setRequests] = useState<RequestItem[]>(initialRequests);
+    const [userVotes, setUserVotes] = useState<Record<number, 'up' | 'down'>>({});
+    const isVotingRef = useRef<Record<number, boolean>>({});
 
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -33,6 +36,11 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 localStorage.setItem('factrepo_citizen_id', stored);
             }
             setCitizenId(stored);
+
+            const storedVotes = localStorage.getItem('factrepo_user_votes');
+            if (storedVotes) {
+                setUserVotes(JSON.parse(storedVotes));
+            }
         } catch {
             setCitizenId(`진실탐정_${Math.floor(100 + Math.random() * 900)}호`);
         }
@@ -46,6 +54,103 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             setCitizenId(newId);
         } catch {
             setCitizenId(`진실탐정_${Math.floor(100 + Math.random() * 900)}호`);
+        }
+    };
+
+    const handleVote = async (id: number, type: 'up' | 'down') => {
+        if (isVotingRef.current[id]) return;
+        isVotingRef.current[id] = true;
+
+        try {
+            const target = requests.find((r) => r.id === id);
+            if (!target) return;
+
+            const currentVote = userVotes[id];
+            let newUpvotes = target.upvotes ?? 0;
+            let newDownvotes = target.downvotes ?? 0;
+            const newUserVotes = { ...userVotes };
+
+            let deltaUp = 0;
+            let deltaDown = 0;
+
+            if (currentVote === type) {
+                // 이미 투표한 것을 다시 눌렀을 때: 취소
+                if (type === 'up') {
+                    deltaUp = -1;
+                } else {
+                    deltaDown = -1;
+                }
+                delete newUserVotes[id];
+            } else if (currentVote) {
+                // 다른 쪽에 투표했던 것을 변경할 때: 이전 투표 취소 + 새 투표 추가
+                if (type === 'up') {
+                    deltaUp = 1;
+                    deltaDown = -1;
+                } else {
+                    deltaDown = 1;
+                    deltaUp = -1;
+                }
+                newUserVotes[id] = type;
+            } else {
+                // 새로 투표할 때
+                if (type === 'up') {
+                    deltaUp = 1;
+                } else {
+                    deltaDown = 1;
+                }
+                newUserVotes[id] = type;
+            }
+
+            newUpvotes = Math.max(0, newUpvotes + deltaUp);
+            newDownvotes = Math.max(0, newDownvotes + deltaDown);
+
+            // 1. 낙관적 UI 업데이트 (사용자 화면에 즉시 반영)
+            setUserVotes(newUserVotes);
+            setRequests((prev) =>
+                prev.map((r) =>
+                    r.id === id ? { ...r, upvotes: newUpvotes, downvotes: newDownvotes } : r
+                )
+            );
+
+            try {
+                localStorage.setItem('factrepo_user_votes', JSON.stringify(newUserVotes));
+            } catch (e) {
+                console.error('로컬스토리지 저장 실패:', e);
+            }
+
+            // 2. Supabase DB 최신 데이터 기반 증감 적용
+            const { data: currentReq, error: fetchError } = await supabase
+                .from('requests')
+                .select('upvotes, downvotes')
+                .eq('id', id)
+                .single();
+
+            let finalUp = newUpvotes;
+            let finalDown = newDownvotes;
+
+            if (!fetchError && currentReq) {
+                finalUp = Math.max(0, (currentReq.upvotes ?? 0) + deltaUp);
+                finalDown = Math.max(0, (currentReq.downvotes ?? 0) + deltaDown);
+            }
+
+            const { error: updateError } = await supabase
+                .from('requests')
+                .update({ upvotes: finalUp, downvotes: finalDown })
+                .eq('id', id);
+
+            if (updateError) {
+                console.error('DB 투표 업데이트 실패:', updateError);
+            } else {
+                setRequests((prev) =>
+                    prev.map((r) =>
+                        r.id === id ? { ...r, upvotes: finalUp, downvotes: finalDown } : r
+                    )
+                );
+            }
+        } catch (err) {
+            console.error('투표 처리 중 오류 발생:', err);
+        } finally {
+            isVotingRef.current[id] = false;
         }
     };
 
@@ -125,6 +230,8 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                     requests={requests}
                     loading={false}
                     citizenId={citizenId}
+                    userVotes={userVotes}
+                    onVote={handleVote}
                     onOpenModal={() => setIsRequestModalOpen(true)}
                     onVoteUpdate={(reqId: any, up: any, down: any) => {
                         setRequests((prev) =>
@@ -143,6 +250,15 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 onClose={() => setIsRequestModalOpen(false)}
                 onSuccess={(newReq) => {
                     setRequests((prev) => [newReq, ...prev]);
+                    setUserVotes((prev) => {
+                        const updated = { ...prev, [newReq.id]: 'up' as const };
+                        try {
+                            localStorage.setItem('factrepo_user_votes', JSON.stringify(updated));
+                        } catch (e) {
+                            console.error('로컬스토리지 저장 실패:', e);
+                        }
+                        return updated;
+                    });
                 }}
             />
 
