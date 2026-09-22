@@ -115,10 +115,11 @@ export default function RequestList({
                                                     href={req.image_url}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="inline-flex items-center gap-1 bg-neutral-700/60 hover:bg-neutral-700 text-neutral-300 px-2 py-0.5 rounded text-[11px] transition shrink-0"
+                                                    title="기사 화면 캡처본(증거 박제) 새창 확인"
+                                                    className="inline-flex items-center gap-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-200 hover:text-white px-2.5 py-0.5 rounded text-[11px] font-medium border border-neutral-600/70 transition shrink-0 shadow-sm"
                                                 >
-                                                    <span>📎</span>
-                                                    <span>캡처 확인</span>
+                                                    <span>📸</span>
+                                                    <span>원문 캡처 박제</span>
                                                 </a>
                                             )}
 
