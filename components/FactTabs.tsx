@@ -81,6 +81,20 @@ const getHashtagList = (tags?: string[] | string): string[] => {
     return [];
 };
 
+const getLocalDateString = (isoString?: string): string => {
+    if (!isoString) return '';
+    try {
+        const d = new Date(isoString);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch {
+        return '';
+    }
+};
+
 export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditModal, onDeleteFact }: FactTabsProps) {
     const { user } = useAuth();
     const isAdmin = user?.displayId === 'iam76men';
@@ -365,10 +379,10 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
     const filteredFacts = useMemo(() => {
         let list = [...facts];
 
-        // 날짜 필터 (발행일 기준 YYYY-MM-DD)
+        // 날짜 필터 (발행일 기준 로컬 시간대 YYYY-MM-DD)
         if (selectedDate) {
             list = list.filter((fact) => {
-                const pubDate = new Date(fact.published_at).toISOString().split('T')[0];
+                const pubDate = getLocalDateString(fact.published_at);
                 return pubDate === selectedDate;
             });
         }
