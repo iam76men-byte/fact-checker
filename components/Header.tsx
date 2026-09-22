@@ -67,11 +67,11 @@ export default function Header({
                         <div className="text-[11px] text-neutral-500 py-1">인증 확인 중...</div>
                     ) : isLoggedIn && user ? (
                         <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-1.5 bg-neutral-800/90 border border-emerald-600/40 px-2.5 py-1 rounded-lg text-xs shadow-sm" title={`네이버 고유 ID: ${user.id}`}>
+                            <div className="flex items-center gap-1.5 bg-neutral-800/90 border border-emerald-600/40 px-2.5 py-1 rounded-lg text-xs shadow-sm" title={`네이버 ID: ${user.displayId || user.maskedId}`}>
                                 <span className="w-4 h-4 rounded bg-[#03c75a] text-white text-[10px] font-black flex items-center justify-center shrink-0">
                                     N
                                 </span>
-                                <span className="text-neutral-200 font-medium">{user.maskedId}</span>
+                                <span className="text-neutral-200 font-medium">{user.displayId || user.maskedId}</span>
                             </div>
                             <button
                                 type="button"

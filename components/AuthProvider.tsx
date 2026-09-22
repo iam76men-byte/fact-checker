@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import LoginPromptModal from './LoginPromptModal';
 
 export interface AuthUser {
-    id: string; // 네이버 고유 회원 식별 ID
+    id: string; // 네이버 고유 식별 ID
+    displayId?: string; // 화면에 표시할 네이버 ID (예: iam76men)
     maskedId: string;
 }
 

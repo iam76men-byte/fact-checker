@@ -1,22 +1,14 @@
 import { cookies } from 'next/headers';
 
 export const NAVER_SESSION_COOKIE = 'factrepo_naver_uid';
+export const NAVER_DISPLAY_ID_COOKIE = 'factrepo_naver_display_id';
 export const NAVER_STATE_COOKIE = 'factrepo_oauth_state';
 export const NAVER_RETURN_COOKIE = 'factrepo_auth_return';
 
 export interface NaverUserSession {
-    id: string; // 네이버 고유 회원 식별 ID (오직 이 값만 수집/사용)
-    maskedId: string;
-}
-
-/**
- * 네이버 ID 마스킹 헬퍼
- * 예: "a1b2c3d4e5" -> "a1b2***"
- */
-export function maskUserId(id: string): string {
-    if (!id) return '';
-    if (id.length <= 4) return id + '***';
-    return `${id.slice(0, 4)}***`;
+    id: string; // 내부 고유 식별 ID
+    displayId: string; // 화면 표시용 네이버 ID (예: iam76men)
+    maskedId: string; // 표시용 (사용자가 원하는 실제 아이디 형식)
 }
 
 /**
@@ -74,10 +66,11 @@ export async function exchangeNaverToken(code: string, state: string, redirectUr
 }
 
 /**
- * 네이버 회원 프로필에서 '고유 ID'만 추출
- * (개인정보 최소화 원칙: 이름, 이메일, 전화번호 등 불필요한 정보는 일체 취급하지 않음)
+ * 네이버 프로필 조회:
+ * 네이버 정책상 실제 아이디(iam76men)는 이메일(iam76men@naver.com)의 @ 앞자리로 전달됩니다.
+ * 이메일이 제공되면 @ 앞부분을 displayId로 사용하고, 없으면 별명(nickname), 둘 다 없으면 고유 ID 사용.
  */
-export async function getNaverUserId(accessToken: string): Promise<string> {
+export async function getNaverProfile(accessToken: string): Promise<{ id: string; displayId: string }> {
     const res = await fetch('https://openapi.naver.com/v1/nid/me', {
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -94,8 +87,23 @@ export async function getNaverUserId(accessToken: string): Promise<string> {
         throw new Error(`Invalid Naver profile response: ${data.message || 'ID not found'}`);
     }
 
-    // 오직 고유 회원 식별 번호만 반환
-    return String(data.response.id);
+    const uniqueId = String(data.response.id);
+    let displayId = '';
+
+    if (data.response.email) {
+        // 예: iam76men@naver.com -> iam76men
+        displayId = data.response.email.split('@')[0];
+    } else if (data.response.nickname) {
+        displayId = String(data.response.nickname);
+    } else {
+        // 이메일이나 별명이 제공되지 않았을 때의 fallback
+        displayId = uniqueId.length > 8 ? uniqueId.slice(0, 8) : uniqueId;
+    }
+
+    return {
+        id: uniqueId,
+        displayId,
+    };
 }
 
 /**
@@ -104,11 +112,13 @@ export async function getNaverUserId(accessToken: string): Promise<string> {
 export async function getServerNaverUser(): Promise<NaverUserSession | null> {
     const cookieStore = await cookies();
     const userId = cookieStore.get(NAVER_SESSION_COOKIE)?.value;
+    const displayId = cookieStore.get(NAVER_DISPLAY_ID_COOKIE)?.value || userId || '';
 
     if (!userId) return null;
 
     return {
         id: userId,
-        maskedId: maskUserId(userId),
+        displayId: displayId,
+        maskedId: displayId, // 사용자가 원하는 형식 (예: iam76men)
     };
 }

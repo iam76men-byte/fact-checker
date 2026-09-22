@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
     exchangeNaverToken,
-    getNaverUserId,
+    getNaverProfile,
     NAVER_SESSION_COOKIE,
+    NAVER_DISPLAY_ID_COOKIE,
     NAVER_STATE_COOKIE,
     NAVER_RETURN_COOKIE,
 } from '@/lib/auth';
@@ -41,8 +42,8 @@ export async function GET(request: NextRequest) {
         // 1. 토큰 교환
         const accessToken = await exchangeNaverToken(code, state, redirectUri);
 
-        // 2. 네이버 사용자 프로필에서 '오직 고유 ID'만 추출
-        const naverId = await getNaverUserId(accessToken);
+        // 2. 네이버 프로필에서 고유 ID 및 표시용 네이버 ID(iam76men 등) 추출
+        const { id: naverId, displayId } = await getNaverProfile(accessToken);
 
         // 3. 원래 돌아갈 URL 준비
         const targetUrl = new URL(returnTo, request.url);
@@ -50,16 +51,25 @@ export async function GET(request: NextRequest) {
 
         const response = NextResponse.redirect(targetUrl);
 
-        // 4. 세션 쿠키 설정 (30일 유지)
+        // 4. 고유 회원번호 쿠키 (30일 유지)
         response.cookies.set(NAVER_SESSION_COOKIE, naverId, {
-            httpOnly: false, // 클라이언트에서도 식별자 동기화 확인 가능하도록 (보안 필요 시 API 통해 검증 병행)
+            httpOnly: false,
             secure: process.env.NODE_ENV === 'production',
             path: '/',
             maxAge: 60 * 60 * 24 * 30, // 30일
             sameSite: 'lax',
         });
 
-        // 5. 사용 완료된 임시 쿠키 정리
+        // 5. 화면 표시용 네이버 ID 쿠키 (예: iam76men)
+        response.cookies.set(NAVER_DISPLAY_ID_COOKIE, displayId, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 30, // 30일
+            sameSite: 'lax',
+        });
+
+        // 6. 사용 완료된 임시 쿠키 정리
         response.cookies.delete(NAVER_STATE_COOKIE);
         response.cookies.delete(NAVER_RETURN_COOKIE);
 
