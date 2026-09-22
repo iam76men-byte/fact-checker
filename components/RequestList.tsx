@@ -1,8 +1,6 @@
 'use client';
 
-export interface RequestItem { ... }
-
-interface RequestItem {
+export interface RequestItem {
     id: number;
     title: string;
     source_url?: string;
@@ -15,13 +13,22 @@ interface RequestItem {
 interface RequestListProps {
     requests: RequestItem[];
     loading: boolean;
-    citizenID?: String;
-    userVotes: Record<number, 'up' | 'down'>;
-    onVote: (id: number, type: 'up' | 'down') => void;
+    citizenId?: string; // 소문자 string으로 수정
+    userVotes?: Record<number, 'up' | 'down'>; // ? 추가 (필수 해제)
+    onVote?: (id: number, type: 'up' | 'down') => void; // ? 추가 (필수 해제)
     onOpenModal: () => void;
+    onVoteUpdate?: (reqId: any, up: any, down: any) => void;
 }
 
-export default function RequestList({ requests, loading, userVotes, onVote, onOpenModal }: RequestListProps) {
+export default function RequestList({
+    requests,
+    loading,
+    citizenId,
+    userVotes = {}, // 기본 빈 객체 할당
+    onVote = () => { }, // 기본 빈 함수 할당
+    onOpenModal,
+    onVoteUpdate,
+}: RequestListProps) {
 
     const sortedRequests = [...requests].sort((a, b) => {
         const scoreA = (a.upvotes ?? 0) - (a.downvotes ?? 0);

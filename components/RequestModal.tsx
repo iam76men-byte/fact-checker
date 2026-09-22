@@ -6,12 +6,18 @@ import { RequestItem } from './RequestList';
 
 interface RequestModalProps {
     isOpen: boolean;
-    citizneID?: string;
+    citizenId?: string;
     onClose: () => void;
     onSuccess: (newItem: RequestItem) => void;
 }
 
-export default function RequestModal({ isOpen, onClose, onSuccess }: RequestModalProps) {
+export default function RequestModal({
+    isOpen,
+    citizenId, // 여기에 citizneId라고 되어 있다면 citizenId로 변경
+    onClose,
+    onSuccess,
+}: RequestModalProps) {
+    // 본문 내부에서도 citizneId를 사용 중이었다면 citizenId로 변경
     const [newTitle, setNewTitle] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
