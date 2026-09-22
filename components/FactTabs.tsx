@@ -267,34 +267,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                 }
 
                 return true;
-            })
-        {
-            items.map((item, index) => {
-                const rank = index + 1; // 1, 2, 3, 4, 5...
-
-                return (
-                    <div key={item.id} className="flex items-center gap-3 py-2 border-b border-gray-800">
-                        {/* 순위/번호 영역 */}
-                        <div className="w-16 text-center">
-                            {rank <= 3 ? (
-                                <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                                    TOP {rank}
-                                </span>
-                            ) : (
-                                <span className="text-sm font-semibold text-gray-400">
-                                    {rank}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* 본문 제목/내용 */}
-                        <div className="flex-1">
-                            <h3 className="text-sm font-medium text-white">{item.title}</h3>
-                        </div>
-                    </div>
-                );
-            })
-        }
+            });
     }, [facts, selectedDate, searchQuery]);
 
     return (
