@@ -28,6 +28,36 @@ function RebuttalsContent() {
     const [authError, setAuthError] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
 
+    // 시민 익명 식별자 상태
+    const [mounted, setMounted] = useState(false);
+    const [citizenId, setCitizenId] = useState<string>('시민검증자');
+
+    useEffect(() => {
+        setMounted(true);
+        try {
+            let stored = localStorage.getItem('factrepo_citizen_id');
+            if (!stored || stored.includes('진실탐정')) {
+                const randomNum = Math.floor(100 + Math.random() * 900);
+                stored = `시민검증자_${randomNum}호`;
+                localStorage.setItem('factrepo_citizen_id', stored);
+            }
+            setCitizenId(stored);
+        } catch {
+            setCitizenId(`시민검증자_${Math.floor(100 + Math.random() * 900)}호`);
+        }
+    }, []);
+
+    const handleRenewCitizenId = () => {
+        try {
+            const randomNum = Math.floor(100 + Math.random() * 900);
+            const newId = `시민검증자_${randomNum}호`;
+            localStorage.setItem('factrepo_citizen_id', newId);
+            setCitizenId(newId);
+        } catch {
+            setCitizenId(`시민검증자_${Math.floor(100 + Math.random() * 900)}호`);
+        }
+    };
+
     // 데이터 로드
     const fetchData = async () => {
         setLoading(true);
@@ -162,10 +192,15 @@ function RebuttalsContent() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a] text-neutral-100 flex flex-col font-sans">
-            <Header activeTab="rebuttals" onTabChange={() => {}} />
+        <main className="min-h-screen bg-neutral-900 text-neutral-100 p-4 md:p-8 font-sans">
+            <div className="max-w-4xl mx-auto space-y-6">
+                <Header
+                    activeTab="rebuttals"
+                    nickname={mounted ? citizenId : '시민 확인 중...'}
+                    onResetIdentity={handleRenewCitizenId}
+                    factsCount={facts.length}
+                />
 
-            <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 md:py-10 space-y-6">
                 {/* 상단 안내 배너 */}
                 <div className="bg-gradient-to-r from-neutral-900 via-neutral-900/90 to-neutral-900 border border-neutral-700/80 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
@@ -339,7 +374,6 @@ function RebuttalsContent() {
                         </div>
                     )}
                 </div>
-            </main>
 
             {/* 비밀번호 확인 모달 (정정 또는 소프트 딜리트 시) */}
             {authAction && actionTargetItem && (
@@ -415,13 +449,14 @@ function RebuttalsContent() {
                 }}
                 onSuccess={handleSuccess}
             />
-        </div>
+            </div>
+        </main>
     );
 }
 
 export default function RebuttalsPage() {
     return (
-        <Suspense fallback={<div className="min-h-screen bg-[#0f172a] text-white p-10 text-center">로딩 중...</div>}>
+        <Suspense fallback={<div className="min-h-screen bg-neutral-900 text-white p-10 text-center">로딩 중...</div>}>
             <RebuttalsContent />
         </Suspense>
     );
