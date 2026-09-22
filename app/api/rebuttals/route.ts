@@ -7,6 +7,17 @@ function hashPassword(pwd: string): string {
     return crypto.createHash('sha256').update(pwd.trim()).digest('hex');
 }
 
+// 팩트 판정 라벨 추출기
+function extractVerdictLabel(factSummary?: string | null): string {
+    if (!factSummary) return '검증 완료';
+    if (/대체로\s*사실\s*아님/i.test(factSummary)) return '대체로 사실 아님';
+    if (/사실\s*아님/i.test(factSummary)) return '사실 아님';
+    if (/절반의\s*사실/i.test(factSummary)) return '절반의 사실';
+    if (/대체로\s*사실/i.test(factSummary)) return '대체로 사실';
+    if (/(^|[^\w가-힣])사실([^\w가-힣]|$)/i.test(factSummary)) return '사실';
+    return '검증 완료';
+}
+
 // 1. 반론 목록 조회 (GET)
 export async function GET(req: NextRequest) {
     try {
@@ -15,7 +26,7 @@ export async function GET(req: NextRequest) {
 
         let query = supabase
             .from('rebuttals')
-            .select('id, fact_id, fact_title, fact_verdict, author_name, title, content, reference_file_url, reference_file_name, reference_file_size, created_at, updated_at')
+            .select('*, facts(id, title, fact_summary)')
             .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
@@ -26,8 +37,13 @@ export async function GET(req: NextRequest) {
         const { data, error } = await query;
 
         if (error) {
-            // 테이블이 아직 없는 경우 친절한 안내 반환
-            if (error.code === 'PGRST205' || error.message.includes('does not exist')) {
+            // 테이블 자체가 아직 없는 경우에만 안내 반환
+            const isTableMissing =
+                error.code === 'PGRST205' ||
+                error.code === '42P01' ||
+                (error.message && error.message.includes('relation "public.rebuttals" does not exist'));
+
+            if (isTableMissing) {
                 return NextResponse.json({
                     needsTableSetup: true,
                     rebuttals: [],
@@ -37,8 +53,26 @@ export async function GET(req: NextRequest) {
             throw error;
         }
 
+        const formatted = (data || []).map((row: any) => {
+            const fact = row.facts || {};
+            return {
+                id: row.id,
+                fact_id: row.fact_id,
+                fact_title: row.fact_title || fact.title || '검증 안건',
+                fact_verdict: row.fact_verdict || extractVerdictLabel(fact.fact_summary),
+                author_name: row.author_name,
+                title: row.title,
+                content: row.content,
+                reference_file_url: row.reference_file_url,
+                reference_file_name: row.reference_file_name,
+                reference_file_size: row.reference_file_size,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            };
+        });
+
         return NextResponse.json({
-            rebuttals: data || [],
+            rebuttals: formatted,
         });
     } catch (err: any) {
         console.error('GET /api/rebuttals error:', err);
@@ -127,33 +161,45 @@ export async function POST(req: NextRequest) {
 
         const passwordHash = hashPassword(password);
 
+        const insertPayload: any = {
+            fact_id: Number(factId),
+            author_name: authorName.trim(),
+            title: title.trim(),
+            content: content.trim(),
+            password_hash: passwordHash,
+            reference_file_url: referenceFileUrl,
+            reference_file_name: referenceFileName,
+            reference_file_size: referenceFileSize,
+            is_deleted: false,
+        };
+
         const { data, error } = await supabase
             .from('rebuttals')
-            .insert([
-                {
-                    fact_id: Number(factId),
-                    fact_title: factTitle || '선택된 팩트',
-                    fact_verdict: factVerdict || '검증 안건',
-                    author_name: authorName.trim(),
-                    title: title.trim(),
-                    content: content.trim(),
-                    password_hash: passwordHash,
-                    reference_file_url: referenceFileUrl,
-                    reference_file_name: referenceFileName,
-                    reference_file_size: referenceFileSize,
-                    is_deleted: false,
-                },
-            ])
-            .select('id, fact_id, fact_title, fact_verdict, author_name, title, content, reference_file_url, reference_file_name, reference_file_size, created_at')
+            .insert([insertPayload])
+            .select('*, facts(id, title, fact_summary)')
             .single();
 
         if (error) {
             throw error;
         }
 
+        const formatted = {
+            id: data.id,
+            fact_id: data.fact_id,
+            fact_title: data.fact_title || data.facts?.title || factTitle || '선택된 팩트',
+            fact_verdict: data.fact_verdict || extractVerdictLabel(data.facts?.fact_summary) || factVerdict || '검증 안건',
+            author_name: data.author_name,
+            title: data.title,
+            content: data.content,
+            reference_file_url: data.reference_file_url,
+            reference_file_name: data.reference_file_name,
+            reference_file_size: data.reference_file_size,
+            created_at: data.created_at,
+        };
+
         return NextResponse.json({
             success: true,
-            rebuttal: data,
+            rebuttal: formatted,
         });
     } catch (err: any) {
         console.error('POST /api/rebuttals error:', err);
@@ -208,14 +254,27 @@ export async function PUT(req: NextRequest) {
                 updated_at: new Date().toISOString(),
             })
             .eq('id', id)
-            .select('id, fact_id, fact_title, fact_verdict, author_name, title, content, reference_file_url, reference_file_name, updated_at')
+            .select('*, facts(id, title, fact_summary)')
             .single();
 
         if (updateError) throw updateError;
 
+        const formatted = {
+            id: data.id,
+            fact_id: data.fact_id,
+            fact_title: data.fact_title || data.facts?.title || '선택된 팩트',
+            fact_verdict: data.fact_verdict || extractVerdictLabel(data.facts?.fact_summary) || '검증 안건',
+            author_name: data.author_name,
+            title: data.title,
+            content: data.content,
+            reference_file_url: data.reference_file_url,
+            reference_file_name: data.reference_file_name,
+            updated_at: data.updated_at,
+        };
+
         return NextResponse.json({
             success: true,
-            rebuttal: data,
+            rebuttal: formatted,
         });
     } catch (err: any) {
         console.error('PUT /api/rebuttals error:', err);
@@ -278,3 +337,4 @@ export async function DELETE(req: NextRequest) {
         );
     }
 }
+
