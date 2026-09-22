@@ -21,6 +21,7 @@ export function getNaverAuthorizeUrl(state: string, redirectUri: string): string
         client_id: clientId,
         redirect_uri: redirectUri,
         state: state,
+        auth_type: 'reprompt', // 기존 연동자에게도 새로 추가된 '이메일' 동의 화면을 강제로 띄움
     });
 
     return `https://nid.naver.com/oauth2.0/authorize?${params.toString()}`;
@@ -86,6 +87,13 @@ export async function getNaverProfile(accessToken: string): Promise<{ id: string
     if (data.resultcode !== '00' || !data.response?.id) {
         throw new Error(`Invalid Naver profile response: ${data.message || 'ID not found'}`);
     }
+
+    console.log('[FactRepo Naver Auth] Profile data received:', {
+        hasEmail: !!data.response.email,
+        email: data.response.email,
+        nickname: data.response.nickname,
+        id: data.response.id,
+    });
 
     const uniqueId = String(data.response.id);
     let displayId = '';
