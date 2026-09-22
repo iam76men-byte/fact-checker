@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from './AuthProvider';
 
 interface HeaderProps {
     nickname?: string;
@@ -22,6 +23,7 @@ export default function Header({
 }: HeaderProps) {
     const pathname = usePathname();
     const isMainPage = pathname === '/';
+    const { user, isLoggedIn, login, logout, loading } = useAuth();
 
     const handleFactsClick = (e: React.MouseEvent) => {
         if (isMainPage && onTabChange) {
@@ -46,7 +48,7 @@ export default function Header({
 
     return (
         <header className="mb-6 border-b border-neutral-800 pb-4 space-y-2.5">
-            {/* 1행: 로고 & 시민 익명 식별자 뱃지 */}
+            {/* 1행: 로고 & 네이버 로그인/회원 식별자 뱃지 */}
             <div className="flex items-center justify-between gap-4">
                 <Link href="/" className="inline-block group">
                     <div className="flex items-center gap-2">
@@ -59,24 +61,41 @@ export default function Header({
                     </div>
                 </Link>
 
-                {nickname && (
-                    <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1.5 bg-neutral-800/90 border border-neutral-700 px-2.5 py-1 rounded-lg text-xs shadow-sm">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                            <span className="text-neutral-200 font-medium">{nickname}</span>
-                        </div>
-                        {onResetIdentity && (
+                {/* 우측 사용자 인증 영역 */}
+                <div className="flex items-center gap-2">
+                    {loading ? (
+                        <div className="text-[11px] text-neutral-500 py-1">인증 확인 중...</div>
+                    ) : isLoggedIn && user ? (
+                        <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 bg-neutral-800/90 border border-emerald-600/40 px-2.5 py-1 rounded-lg text-xs shadow-sm" title={`네이버 고유 ID: ${user.id}`}>
+                                <span className="w-4 h-4 rounded bg-[#03c75a] text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                                    N
+                                </span>
+                                <span className="text-neutral-200 font-medium">{user.maskedId}</span>
+                            </div>
                             <button
                                 type="button"
-                                onClick={onResetIdentity}
-                                title="새 익명 식별자로 재발급"
+                                onClick={() => logout()}
+                                title="로그아웃"
                                 className="text-[11px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 px-2 py-1 rounded-lg border border-neutral-700 transition cursor-pointer"
                             >
-                                재발급
+                                로그아웃
                             </button>
-                        )}
-                    </div>
-                )}
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => login()}
+                            title="네이버 아이디로 로그인 (추천/비추천 및 글쓰기에 필요)"
+                            className="flex items-center gap-1.5 bg-[#03c75a] hover:bg-[#02b350] active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
+                        >
+                            <span className="w-3.5 h-3.5 rounded-xs bg-white text-[#03c75a] text-[10px] font-black flex items-center justify-center">
+                                N
+                            </span>
+                            <span>네이버 로그인</span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* 2행: 공익 아카이브 슬로건 & 상단 통합 글로벌 네비게이션 */}

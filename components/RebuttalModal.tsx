@@ -29,6 +29,7 @@ interface RebuttalModalProps {
     facts: FactItemForRebuttal[];
     initialFactId?: number | null;
     editingItem?: RebuttalItem | null;
+    defaultAuthorName?: string;
     onClose: () => void;
     onSuccess: (item: RebuttalItem, isEdit: boolean) => void;
 }
@@ -38,6 +39,7 @@ export default function RebuttalModal({
     facts,
     initialFactId,
     editingItem,
+    defaultAuthorName,
     onClose,
     onSuccess,
 }: RebuttalModalProps) {
@@ -92,13 +94,13 @@ export default function RebuttalModal({
         } else {
             setSelectedFactId(initialFactId || (facts.length > 0 ? facts[0].id : ''));
             setTitle('');
-            setAuthorName('시민/당사자');
+            setAuthorName(defaultAuthorName || '시민/당사자');
             setContent('');
             setPassword('');
             setSelectedFile(null);
             setFileError('');
         }
-    }, [isOpen, editingItem, initialFactId, facts]);
+    }, [isOpen, editingItem, initialFactId, facts, defaultAuthorName]);
 
     if (!isOpen) return null;
 

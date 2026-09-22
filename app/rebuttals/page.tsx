@@ -5,11 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import RebuttalModal, { RebuttalItem, FactItemForRebuttal } from '@/components/RebuttalModal';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 import Link from 'next/link';
 
 function RebuttalsContent() {
     const searchParams = useSearchParams();
     const factIdParam = searchParams.get('factId');
+
+    const { user, requireAuth } = useAuth();
 
     const [rebuttals, setRebuttals] = useState<RebuttalItem[]>([]);
     const [facts, setFacts] = useState<FactItemForRebuttal[]>([]);
@@ -93,11 +96,18 @@ function RebuttalsContent() {
         fetchData();
     }, []);
 
-    // URL 파라미터로 factId가 넘어왔을 경우 모달 자동 오픈
+    const handleOpenCreate = (factId?: number | null) => {
+        requireAuth('공식 반론 제기', () => {
+            setEditingItem(null);
+            setTargetFactId(factId ?? null);
+            setIsModalOpen(true);
+        });
+    };
+
+    // URL 파라미터로 factId가 넘어왔을 경우 로그인 확인 후 모달 오픈
     useEffect(() => {
         if (factIdParam && facts.length > 0) {
-            setTargetFactId(Number(factIdParam));
-            setIsModalOpen(true);
+            handleOpenCreate(Number(factIdParam));
         }
     }, [factIdParam, facts]);
 
@@ -145,12 +155,10 @@ function RebuttalsContent() {
         setAuthError('');
     };
 
-    // 비밀번호 검증 및 작업 실행
-    const handleConfirmAuth = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!actionTargetItem || !authAction) return;
-
-        if (!inputPassword.trim()) {
+    // 비밀번호 검증 실행
+    const handleVerifyPassword = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!actionTargetItem || !inputPassword.trim()) {
             setAuthError('비밀번호를 입력해주세요.');
             return;
         }
@@ -159,23 +167,25 @@ function RebuttalsContent() {
         setAuthError('');
 
         try {
+            const res = await fetch('/api/rebuttals', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: actionTargetItem.id,
+                    password: inputPassword.trim(),
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || '비밀번호가 일치하지 않습니다.');
+            }
+
             if (authAction === 'delete') {
-                // 소프트 딜리트 요청
-                const res = await fetch('/api/rebuttals', {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: actionTargetItem.id,
-                        password: inputPassword.trim(),
-                    }),
-                });
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || '삭제 실패');
-
-                // 리스트에서 즉시 제거
+                // 삭제 완료 -> 목록에서 제거
                 setRebuttals((prev) => prev.filter((r) => r.id !== actionTargetItem.id));
-                alert('반론 게시물이 성공적으로 삭제(비공개 처리)되었습니다.');
+                alert('반론이 성공적으로 삭제되었습니다.');
                 setAuthAction(null);
                 setActionTargetItem(null);
             } else if (authAction === 'edit') {
@@ -191,13 +201,15 @@ function RebuttalsContent() {
         }
     };
 
+    const effectiveCitizenId = user ? `네이버(${user.maskedId})` : (mounted ? citizenId : '시민 확인 중...');
+
     return (
         <main className="min-h-screen bg-neutral-900 text-neutral-100 p-4 md:p-8 font-sans">
             <div className="max-w-4xl mx-auto space-y-6">
                 <Header
                     activeTab="rebuttals"
-                    nickname={mounted ? citizenId : '시민 확인 중...'}
-                    onResetIdentity={handleRenewCitizenId}
+                    nickname={effectiveCitizenId}
+                    onResetIdentity={user ? undefined : handleRenewCitizenId}
                     factsCount={facts.length}
                 />
 
@@ -217,11 +229,7 @@ function RebuttalsContent() {
                             </p>
                         </div>
                         <button
-                            onClick={() => {
-                                setEditingItem(null);
-                                setTargetFactId(null);
-                                setIsModalOpen(true);
-                            }}
+                            onClick={() => handleOpenCreate()}
                             className="self-start md:self-auto shrink-0 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs md:text-sm rounded-xl transition shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
                         >
                             <span>✍️</span>
@@ -397,7 +405,7 @@ function RebuttalsContent() {
                             {authAction === 'delete' && ' 확인 시 즉시 목록에서 비공개(삭제) 처리됩니다.'}
                         </p>
 
-                        <form onSubmit={handleConfirmAuth} className="space-y-3">
+                        <form onSubmit={handleVerifyPassword} className="space-y-3">
                             <input
                                 type="password"
                                 required
@@ -443,6 +451,7 @@ function RebuttalsContent() {
                 facts={facts}
                 initialFactId={targetFactId}
                 editingItem={editingItem}
+                defaultAuthorName={user ? `네이버(${user.maskedId})` : '시민/당사자'}
                 onClose={() => {
                     setIsModalOpen(false);
                     setEditingItem(null);

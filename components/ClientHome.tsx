@@ -9,6 +9,7 @@ import FactTabs, { FactItem } from './FactTabs';
 import RequestModal from './RequestModal';
 import AdminFactModal from './AdminFactModal';
 import AboutSection from './AboutSection';
+import { useAuth } from './AuthProvider';
 
 interface ClientHomeProps {
     initialFacts: FactItem[];
@@ -20,6 +21,8 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
     const [tab, setTab] = useState<'facts' | 'requests' | 'about'>('facts');
     const [citizenId, setCitizenId] = useState<string>('시민검증자');
 
+    const { user, isLoggedIn, requireAuth } = useAuth();
+
     const [facts, setFacts] = useState<FactItem[]>(initialFacts);
     const [requests, setRequests] = useState<RequestItem[]>(initialRequests);
     const [userVotes, setUserVotes] = useState<Record<number, 'up' | 'down'>>({});
@@ -27,6 +30,9 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
 
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+    // 투표 저장소 키 결정 (네이버 고유 ID별 격리)
+    const getVoteStorageKey = (uid?: string) => uid ? `factrepo_votes_${uid}` : 'factrepo_votes_guest';
 
     // 브라우저 마운트 완료 후에만 localStorage 및 URL 파라미터에 접근 (Hydration Mismatch 방지)
     useEffect(() => {
@@ -40,22 +46,31 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             }
 
             let stored = localStorage.getItem('factrepo_citizen_id');
-            // 이전의 '진실탐정' 형태 닉네임이 저장되어 있다면 새 명칭 '시민검증자'로 정돈
             if (!stored || stored.includes('진실탐정')) {
                 const randomNum = Math.floor(100 + Math.random() * 900);
                 stored = `시민검증자_${randomNum}호`;
                 localStorage.setItem('factrepo_citizen_id', stored);
             }
             setCitizenId(stored);
-
-            const storedVotes = localStorage.getItem('factrepo_user_votes');
-            if (storedVotes) {
-                setUserVotes(JSON.parse(storedVotes));
-            }
         } catch {
             setCitizenId(`시민검증자_${Math.floor(100 + Math.random() * 900)}호`);
         }
     }, []);
+
+    // 로그인 유저가 바뀌거나 마운트될 때 해당 유저의 투표 기록 로드
+    useEffect(() => {
+        try {
+            const key = getVoteStorageKey(user?.id);
+            const storedVotes = localStorage.getItem(key);
+            if (storedVotes) {
+                setUserVotes(JSON.parse(storedVotes));
+            } else {
+                setUserVotes({});
+            }
+        } catch {
+            setUserVotes({});
+        }
+    }, [user?.id]);
 
     const handleRenewCitizenId = () => {
         try {
@@ -68,111 +83,124 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
         }
     };
 
-    const handleVote = async (id: number, type: 'up' | 'down') => {
-        if (isVotingRef.current[id]) return;
-        isVotingRef.current[id] = true;
-
-        try {
-            const target = requests.find((r) => r.id === id);
-            if (!target) return;
-
-            const currentVote = userVotes[id];
-            let newUpvotes = target.upvotes ?? 0;
-            let newDownvotes = target.downvotes ?? 0;
-            const newUserVotes = { ...userVotes };
-
-            let deltaUp = 0;
-            let deltaDown = 0;
-
-            if (currentVote === type) {
-                // 이미 투표한 것을 다시 눌렀을 때: 취소
-                if (type === 'up') {
-                    deltaUp = -1;
-                } else {
-                    deltaDown = -1;
-                }
-                delete newUserVotes[id];
-            } else if (currentVote) {
-                // 반대 투표로 변경할 때
-                if (type === 'up') {
-                    deltaUp = 1;
-                    deltaDown = -1;
-                } else {
-                    deltaUp = -1;
-                    deltaDown = 1;
-                }
-                newUserVotes[id] = type;
-            } else {
-                // 신규 투표
-                if (type === 'up') {
-                    deltaUp = 1;
-                } else {
-                    deltaDown = 1;
-                }
-                newUserVotes[id] = type;
-            }
-
-            const finalUp = Math.max(0, newUpvotes + deltaUp);
-            const finalDown = Math.max(0, newDownvotes + deltaDown);
-
-            // 로컬 UI 상태 즉시 낙관적 반영
-            setUserVotes(newUserVotes);
-            setRequests((prev) =>
-                prev.map((r) =>
-                    r.id === id ? { ...r, upvotes: finalUp, downvotes: finalDown } : r
-                )
-            );
+    const handleVote = (id: number, type: 'up' | 'down') => {
+        // 요구사항: "볼 때는 로그인이 필요없지만 추천, 비추천, 글쓰기를 할 때는 ID가 있어야 함"
+        requireAuth('추천 / 비추천 투표', async () => {
+            if (isVotingRef.current[id]) return;
+            isVotingRef.current[id] = true;
 
             try {
-                localStorage.setItem('factrepo_user_votes', JSON.stringify(newUserVotes));
-            } catch (e) {
-                console.error('로컬스토리지 저장 실패:', e);
-            }
+                const target = requests.find((r) => r.id === id);
+                if (!target) return;
 
-            // Supabase RPC 호출로 안전한 DB 동기화
-            const { error: rpcError } = await supabase.rpc('vote_request', {
-                row_id: id,
-                delta_up: deltaUp,
-                delta_down: deltaDown,
-            });
+                const currentVote = userVotes[id];
+                let newUpvotes = target.upvotes ?? 0;
+                let newDownvotes = target.downvotes ?? 0;
+                const newUserVotes = { ...userVotes };
 
-            if (rpcError) {
-                // RPC 실패 시 fallback direct update
-                const { error: updateError } = await supabase
-                    .from('requests')
-                    .update({
-                        upvotes: finalUp,
-                        downvotes: finalDown,
-                    })
-                    .eq('id', id);
+                let deltaUp = 0;
+                let deltaDown = 0;
 
-                if (updateError) {
-                    console.error('투표 업데이트 실패:', updateError);
+                if (currentVote === type) {
+                    // 이미 투표한 것을 다시 눌렀을 때: 취소
+                    if (type === 'up') {
+                        deltaUp = -1;
+                    } else {
+                        deltaDown = -1;
+                    }
+                    delete newUserVotes[id];
+                } else if (currentVote) {
+                    // 반대 투표로 변경할 때
+                    if (type === 'up') {
+                        deltaUp = 1;
+                        deltaDown = -1;
+                    } else {
+                        deltaDown = 1;
+                        deltaUp = -1;
+                    }
+                    newUserVotes[id] = type;
+                } else {
+                    // 신규 투표
+                    if (type === 'up') {
+                        deltaUp = 1;
+                    } else {
+                        deltaDown = 1;
+                    }
+                    newUserVotes[id] = type;
                 }
-            } else {
-                // 서버 최신 수치 재동기화
-                const { data: updatedRow } = await supabase
-                    .from('requests')
-                    .select('upvotes, downvotes')
-                    .eq('id', id)
-                    .single();
 
-                if (updatedRow) {
-                    setRequests((prev) =>
-                        prev.map((r) =>
-                            r.id === id
-                                ? { ...r, upvotes: updatedRow.upvotes, downvotes: updatedRow.downvotes }
-                                : r
-                        )
-                    );
+                const finalUp = Math.max(0, newUpvotes + deltaUp);
+                const finalDown = Math.max(0, newDownvotes + deltaDown);
+
+                // 로컬 UI 상태 즉시 낙관적 반영
+                setUserVotes(newUserVotes);
+                setRequests((prev) =>
+                    prev.map((r) =>
+                        r.id === id ? { ...r, upvotes: finalUp, downvotes: finalDown } : r
+                    )
+                );
+
+                try {
+                    const key = getVoteStorageKey(user?.id);
+                    localStorage.setItem(key, JSON.stringify(newUserVotes));
+                } catch (e) {
+                    console.error('로컬스토리지 저장 실패:', e);
                 }
+
+                // Supabase RPC 호출로 안전한 DB 동기화
+                const { error: rpcError } = await supabase.rpc('vote_request', {
+                    row_id: id,
+                    delta_up: deltaUp,
+                    delta_down: deltaDown,
+                });
+
+                if (rpcError) {
+                    // RPC 실패 시 fallback direct update
+                    const { error: updateError } = await supabase
+                        .from('requests')
+                        .update({
+                            upvotes: finalUp,
+                            downvotes: finalDown,
+                        })
+                        .eq('id', id);
+
+                    if (updateError) {
+                        console.error('투표 업데이트 실패:', updateError);
+                    }
+                } else {
+                    // 서버 최신 수치 재동기화
+                    const { data: updatedRow } = await supabase
+                        .from('requests')
+                        .select('upvotes, downvotes')
+                        .eq('id', id)
+                        .single();
+
+                    if (updatedRow) {
+                        setRequests((prev) =>
+                            prev.map((r) =>
+                                r.id === id
+                                    ? { ...r, upvotes: updatedRow.upvotes, downvotes: updatedRow.downvotes }
+                                    : r
+                            )
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error('투표 처리 중 오류 발생:', err);
+            } finally {
+                isVotingRef.current[id] = false;
             }
-        } catch (err) {
-            console.error('투표 처리 중 오류 발생:', err);
-        } finally {
-            isVotingRef.current[id] = false;
-        }
+        });
     };
+
+    const handleOpenRequestModal = () => {
+        // 요구사항: 글쓰기 시 ID 필요
+        requireAuth('새 검증 의뢰 작성', () => {
+            setIsRequestModalOpen(true);
+        });
+    };
+
+    const effectiveCitizenId = user ? `네이버(${user.maskedId})` : (mounted ? citizenId : '시민 확인 중...');
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -182,8 +210,8 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 onTabChange={(t) => setTab(t)}
                 factsCount={facts.length}
                 requestsCount={requests.length}
-                nickname={mounted ? citizenId : '시민 확인 중...'}
-                onResetIdentity={handleRenewCitizenId}
+                nickname={effectiveCitizenId}
+                onResetIdentity={user ? undefined : handleRenewCitizenId}
             />
 
             {/* 팩트 리포트 탭 */}
@@ -203,10 +231,10 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
                 <RequestList
                     requests={requests}
                     loading={false}
-                    citizenId={citizenId}
+                    citizenId={effectiveCitizenId}
                     userVotes={userVotes}
                     onVote={handleVote}
-                    onOpenModal={() => setIsRequestModalOpen(true)}
+                    onOpenModal={handleOpenRequestModal}
                     onVoteUpdate={(reqId: any, up: any, down: any) => {
                         setRequests((prev) =>
                             prev.map((r) =>
@@ -245,14 +273,15 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             {/* 모달 팝업 */}
             <RequestModal
                 isOpen={isRequestModalOpen}
-                citizenId={citizenId}
+                citizenId={user?.maskedId || citizenId}
                 onClose={() => setIsRequestModalOpen(false)}
                 onSuccess={(newReq) => {
                     setRequests((prev) => [newReq, ...prev]);
                     setUserVotes((prev) => {
                         const updated = { ...prev, [newReq.id]: 'up' as const };
                         try {
-                            localStorage.setItem('factrepo_user_votes', JSON.stringify(updated));
+                            const key = getVoteStorageKey(user?.id);
+                            localStorage.setItem(key, JSON.stringify(updated));
                         } catch (e) {
                             console.error('로컬스토리지 저장 실패:', e);
                         }
