@@ -35,44 +35,128 @@ async function fetchArticleText(url: string): Promise<string> {
     }
 }
 
-// 텍스트 기반 5대 핵심 해시태그 스마트 추출기
+// 한국어 명사 정제 및 조사/어미 제거 헬퍼
+function cleanKoreanNoun(word: string): string | null {
+    if (!word || word.length < 2) return null;
+
+    // 따옴표나 괄호 제거
+    word = word.replace(/^[‘'“"(\[]+|[’'”")\]]+$/g, '');
+
+    // 조사 및 어미 제거 패턴 (긴 접미사부터 매칭)
+    const particleSuffixes = [
+        '누군가에게', '에게서는', '에서는', '에게서', '에게는', '에게도',
+        '으로는', '으로써', '로서의', '에서의', '으로의', '에서는',
+        '에게', '에서', '으로', '로써', '로서', '과의', '와의',
+        '이나', '이나마', '지만', '면서', '려고', '도록', '은커녕',
+        '하고', '하며', '하여', '했다', '된다', '한다', '됐다',
+        '받은', '받는', '받아', '있는', '없는', '없다', '있다', '않는', '않은',
+        '에는', '에도', '까지', '부터', '마다', '처럼', '만큼',
+        '은', '는', '이', '가', '을', '를', '의', '에', '로', '와', '과', '도', '만'
+    ];
+
+    for (const suffix of particleSuffixes) {
+        if (word.endsWith(suffix) && word.length > suffix.length + 1) {
+            word = word.slice(0, -suffix.length);
+            break;
+        }
+    }
+
+    return word.length >= 2 ? word : null;
+}
+
+// 텍스트 기반 5대 핵심 해시태그 스마트 추출기 (형태소/도메인 지능형 알고리즘)
 function extractSmartHashtags(title: string, distortion: string, primarySource: string): string[] {
     const fullText = `${title} ${distortion} ${primarySource}`;
-    const words = fullText.match(/[가-힣a-zA-Z0-9]{2,8}/g) || [];
-    
-    // 불용어 및 일반 단어 필터링
-    const stopWords = new Set(['대한', '관련', '통해', '이용', '위해', '경우', '사실', '내용', '확인', '결과', '제시', '판정', '검증', '사료', '근거', '주장', '제기', '의혹']);
-    const frequencyMap = new Map<string, number>();
 
-    for (const word of words) {
-        if (!stopWords.has(word) && word.length >= 2) {
-            frequencyMap.set(word, (frequencyMap.get(word) || 0) + 1);
+    // 1. 제외할 불용어 (동사, 형용사, 대명사, 일반 추상어, 접속사)
+    const stopWords = new Set([
+        '대한', '관련', '통해', '이용', '위해', '경우', '사실', '내용', '확인', '결과',
+        '제시', '판정', '검증', '사료', '근거', '주장', '제기', '의혹', '이유', '때문',
+        '모습', '자신', '결코', '다시', '누군가', '그것', '이것', '저것', '모든', '어떤',
+        '각종', '이후', '이전', '당시', '초기', '과거', '현재', '최근', '이러한', '그러한',
+        '이를', '하지만', '그러나', '그리고', '또한', '함께', '가장', '매우', '결국',
+        '바로', '그대로', '원문', '자료', '측면', '단계', '자체', '수단', '포함', '제외',
+        '기준', '비해', '대해', '있으며', '있으나', '있고', '이며', '아니라', '아닌',
+        '하는', '하지', '하면', '하고', '보아', '가까운', '드러나면서', '다뤄졌습니다',
+        '따르면', '따라', '의한', '위한', '대통령', '공무원', '사람', '것이다', '것으로'
+    ]);
+
+    // 2. 가중치를 부여할 핵심 법률/사법/사건/인물 도메인 키워드
+    const domainBonusKeywords = [
+        '뇌물', '뇌물죄', '단순수뢰', '수뢰', '알선수재', '알선수재죄', '공동정범', '제3자뇌물', '제3자뇌물수수',
+        '직무관련성', '대가성', '청탁금지법', '김영란법', '경제적공동체', '포괄적권한', '신고의무', '신분범',
+        '김건희', '최재영', '윤석열', '한동훈', '이재명', '특가법', '공소시효', '수사의무', '기소', '불기소', '구속',
+        '국정농단', '선거법', '공직선거법', '허위사실', '명예훼손', '무고죄', '정치자금법', '배임', '횡령'
+    ];
+
+    const freqMap = new Map<string, number>();
+
+    // 3. 본문 텍스트 내 단어 토큰화 및 가중치 계산
+    const rawTokens = fullText.match(/[가-힣a-zA-Z0-9]{2,15}/g) || [];
+
+    for (const raw of rawTokens) {
+        const cleaned = cleanKoreanNoun(raw);
+        if (!cleaned || stopWords.has(cleaned)) continue;
+
+        let weight = 1;
+        // 도메인 핵심어 보너스 (+4)
+        if (domainBonusKeywords.some(k => cleaned === k || cleaned.includes(k))) {
+            weight += 4;
+        }
+        // 전문 용어 길이 보너스 (3글자 이상: 알선수재, 직무관련성 등)
+        if (cleaned.length >= 4) {
+            weight += 2;
+        }
+
+        freqMap.set(cleaned, (freqMap.get(cleaned) || 0) + weight);
+    }
+
+    // 4. 제목(Title)에 등장하는 단어는 최우선 가중치 (+10)
+    const titleTokens = title.match(/[가-힣a-zA-Z0-9]{2,15}/g) || [];
+    for (const raw of titleTokens) {
+        const cleaned = cleanKoreanNoun(raw);
+        if (cleaned && !stopWords.has(cleaned)) {
+            freqMap.set(cleaned, (freqMap.get(cleaned) || 0) + 10);
         }
     }
 
-    // 제목에 있는 단어 가중치 부여
-    const titleWords = title.match(/[가-힣a-zA-Z0-9]{2,8}/g) || [];
-    for (const tw of titleWords) {
-        if (frequencyMap.has(tw)) {
-            frequencyMap.set(tw, (frequencyMap.get(tw) || 0) + 3);
+    // 5. 따옴표나 강조 기호('...') 안에 있는 단어 가중치 (+5)
+    const quoteMatches = fullText.match(/['"‘“]([가-힣a-zA-Z0-9]{2,15})['"’”]/g) || [];
+    for (const q of quoteMatches) {
+        const word = q.replace(/['"‘“’”]/g, '');
+        const cleaned = cleanKoreanNoun(word);
+        if (cleaned && !stopWords.has(cleaned)) {
+            freqMap.set(cleaned, (freqMap.get(cleaned) || 0) + 5);
         }
     }
 
-    const sorted = [...frequencyMap.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(entry => `#${entry[0]}`);
+    // 빈도 및 가중치 순 정렬
+    const sorted = [...freqMap.entries()]
+        .filter(([word]) => !stopWords.has(word) && word.length >= 2)
+        .sort((a, b) => b[1] - a[1]);
 
-    // 기본 태그 보충
-    const defaultCandidates = ['#팩트체크', '#공식검증', '#진실규명', '#공공데이터', '#이슈검증'];
-    const result: string[] = [];
-    
-    for (const tag of [...sorted, ...defaultCandidates]) {
-        if (!result.includes(tag) && result.length < 5) {
-            result.push(tag);
+    // 중복 및 부분 포함 단어 정제 (예: '뇌물'과 '뇌물죄' 중 더 구체적인 키워드 우선)
+    const picked: string[] = [];
+    for (const [word] of sorted) {
+        const isDuplicate = picked.some(
+            (p) => p === word || (p.length > 2 && word.length > 2 && (p.includes(word) || word.includes(p)))
+        );
+        if (!isDuplicate) {
+            picked.push(word);
+        }
+        if (picked.length >= 5) break;
+    }
+
+    // 만약 5개 미만인 경우 도메인 후보군으로 안전 보충
+    const defaultCandidates = ['팩트체크', '사법쟁점', '공식검증', '진실규명', '법리검토'];
+    for (const cand of defaultCandidates) {
+        if (picked.length >= 5) break;
+        if (!picked.includes(cand)) {
+            picked.push(cand);
         }
     }
 
-    return result.slice(0, 5);
+    return picked.slice(0, 5).map((w) => `#${w}`);
 }
 
 // AI 팩트 체크(근거 자료)를 기반으로 핵심 사실 요약 생성 (스마트 Fallback)
@@ -152,7 +236,10 @@ export async function POST(req: Request) {
 1. 반드시 관리자가 제출한 AI 팩트 체크의 구체적인 내용, 판결/법리, 수치, 결론을 정확하게 반영하세요.
 2. 서두에는 반드시 판정 결론 [사실 / 대체로 사실 / 절반의 사실 / 대체로 사실 아님 / 사실 아님] 중 1차 사료에 가장 부합하는 것을 명시하고 핵심 요약을 1~2문장으로 서술하세요.
 3. 구체적인 사실 대조와 법리/통계적 근거를 바탕으로 3가지 항목(• 객관적 팩트 및 데이터 대조, • 공식 기록 및 규정/절차, • 맥락 및 실체적 진실)으로 나누어 일목요연하게 작성하세요.
-4. 내용과 관련된 가장 핵심적인 주제어 5개를 선별하여 hashtags 배열에 '#키워드' 형태로 담아주세요. (정확히 5개)
+4. [해시태그 5개 추출 필수 지침]:
+   - '받은', '없다', '있는', '누군가에게', '하는', '대통령' 같은 단순 동사, 형용사, 조사, 어미 및 흔한 일반어는 절대로 해시태그로 추출하지 마세요.
+   - 반드시 해당 사건의 본질을 대변하는 핵심 명사 키워드(예: 인물명, 사건명, 구체적 죄명, 핵심 법리, 법률명 등)로만 정확히 5개를 선별하세요.
+   - 예시: ["#김건희", "#뇌물죄", "#직무관련성", "#공동정범", "#알선수재죄"] 또는 ["#청탁금지법", "#경제적공동체", "#제3자뇌물수수", "#디올백", "#단순수뢰"]
 5. 제목이나 항목 외 불필요한 서두 인삿말은 생략하세요.
 
 - 검증 안건 제목: "${title}"
@@ -189,13 +276,27 @@ ${trimmedSource}
                         const rawJson = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (rawJson) {
                             const parsed = JSON.parse(rawJson);
-                            const hashtags = Array.isArray(parsed.hashtags) && parsed.hashtags.length > 0
-                                ? parsed.hashtags.map((t: string) => t.startsWith('#') ? t : `#${t}`).slice(0, 5)
-                                : extractSmartHashtags(title, currentDistortion, trimmedSource);
+                            // AI가 뽑은 해시태그 중 조동사/어미 필터링
+                            let geminiTags: string[] = [];
+                            if (Array.isArray(parsed.hashtags)) {
+                                geminiTags = parsed.hashtags
+                                    .map((t: string) => cleanKoreanNoun(String(t).replace(/^#/, '')))
+                                    .filter((t: string | null): t is string => Boolean(t))
+                                    .map((t: string) => `#${t}`);
+                            }
+
+                            // 유효한 태그가 5개 미만이면 스마트 추출기로 보충
+                            const smartFallback = extractSmartHashtags(title, currentDistortion, trimmedSource);
+                            for (const fb of smartFallback) {
+                                if (geminiTags.length >= 5) break;
+                                if (!geminiTags.includes(fb)) {
+                                    geminiTags.push(fb);
+                                }
+                            }
 
                             return NextResponse.json({
                                 fact_summary: parsed.fact_summary,
-                                hashtags,
+                                hashtags: geminiTags.slice(0, 5),
                             });
                         }
                     }
