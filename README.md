@@ -23,7 +23,12 @@ FactRepo는 인터넷과 소셜 미디어에 만연한 정파적 왜곡과 가�
 ### 4. 5단계 검증 방법론 (Methodology & Transparency)
 - **About 페이지**를 통해 서비스의 운영 주체, 데이터 수집 기준, 5단계 검증 프로세스(의제 선정 → 1차 사료 확보 → 다면 교차검증 → 5단계 판정 기준 → 투명한 영구 아카이빙)를 시민들에게 투명하게 공개합니다.
 
-### 5. 관리자 검증 스튜디오 (Admin Studio)
+### 5. 투명한 시민 반론 게시판 (Citizen Rebuttal Board)
+- **팩트 연동 반론 제기**: 판정된 팩트체크 안건에 대해 시민 및 당사자가 직접 제목 및 판정 결론([대체로 사실 아님] 등)을 확인하고 반론을 제기할 수 있습니다.
+- **철저한 근거 중심**: 최대 2,000자 제한과 200KB 이하 참고문헌 파일 첨부를 지원하여 허위 비방을 방지하고 실질적인 사료를 교차검증합니다.
+- **개인 비밀번호 기반 정정/삭제**: 작성 시 설정한 비밀번호로 본인 글만 안전하게 수정하거나 삭제(Soft Delete, `is_deleted = true`)할 수 있습니다.
+
+### 6. 관리자 검증 스튜디오 (Admin Studio)
 - 접수된 의뢰의 승인/검증 전환, 팩트체크 보고서 작성 및 판정 결과 배지(사실, 대체로 사실, 절반의 사실, 대체로 사실 아님, 사실 아님)를 체계적으로 관리합니다.
 
 ---
@@ -82,9 +87,12 @@ npm run dev
 fact-checker/
 ├── app/
 │   ├── about/             # 5단계 검증 방법론 및 운영 원칙 페이지
+│   ├── rebuttals/         # 시민 반론(이의제기) 게시판 페이지
 │   ├── api/
 │   │   ├── admin/         # 관리자 API (검증 안건 관리 등)
-│   │   └── fact-check/    # AI 팩트체크 초안 생성 엔드포인트
+│   │   ├── fact-check/    # AI 팩트체크 초안 생성 엔드포인트
+│   │   ├── rebuttals/     # 반론 등록/조회/수정/삭제(소프트딜리트) API
+│   │   └── capture-screenshot/ # 자동 캡처 엔드포인트
 │   ├── layout.tsx         # 글로벌 레이아웃 및 폰트 설정
 │   └── page.tsx           # 메인 홈 페이지
 ├── components/
@@ -92,11 +100,13 @@ fact-checker/
 │   ├── AdminFactModal.tsx # 관리자 검증 작성 및 편집 모달
 │   ├── ClientHome.tsx     # 메인 대시보드 뷰어
 │   ├── FactTabs.tsx       # 팩트체크 리스트 및 텍스트/PDF 보고서 뷰어
-│   ├── Header.tsx         # 상단 네비게이션 및 메뉴
+│   ├── Header.tsx         # 상단 네비게이션 (반론 게시판 링크 포함)
+│   ├── RebuttalModal.tsx  # 반론 작성/수정 모달 (2000자, 200KB 첨부, 비번 인증)
 │   ├── RequestList.tsx    # 모바일 최적화 시민 의뢰 목록
 │   └── RequestModal.tsx   # 검증 의뢰 작성 모달
 ├── lib/
 │   └── supabase.ts        # Supabase 클라이언트 설정
+├── schema_rebuttals.sql   # 반론 게시판 DB 테이블 생성 SQL 스크립트
 └── public/                # 파비콘 및 정적 리소스
 ```
 

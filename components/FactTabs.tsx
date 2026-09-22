@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 
 export interface FactItem {
     id: number;
@@ -506,6 +507,15 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                                             <span>보고서 보기</span>
                                         </button>
 
+                                        <Link
+                                            href={`/rebuttals?factId=${fact.id}`}
+                                            className="bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition font-semibold cursor-pointer active:scale-95"
+                                            title="이 팩트에 대해 반론 제기하기"
+                                        >
+                                            <span>⚖️</span>
+                                            <span>반론</span>
+                                        </Link>
+
                                         <button
                                             type="button"
                                             onClick={() => handleOpenDeleteModal(fact.id, fact.title)}
@@ -664,18 +674,26 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onDeleteFac
                         </div>
 
                         {/* 모달 하단 푸터 버튼 */}
-                        <div className="px-4 sm:px-6 py-3.5 border-t border-neutral-800 bg-neutral-900/90 flex items-center justify-end gap-2 shrink-0">
+                        <div className="px-4 sm:px-6 py-3.5 border-t border-neutral-800 bg-neutral-900/90 flex flex-wrap items-center justify-end gap-2 shrink-0">
+                            <Link
+                                href={`/rebuttals?factId=${viewingFact.fact.id}`}
+                                className="px-3.5 py-2 bg-amber-950/70 hover:bg-amber-900 text-amber-300 font-semibold text-xs rounded-lg border border-amber-700/80 transition flex items-center gap-1.5 cursor-pointer"
+                                title="이 검증에 대해 반론 제기하기"
+                            >
+                                <span>⚖️</span>
+                                <span>반론 제기하기</span>
+                            </Link>
                             <button
                                 type="button"
                                 onClick={() => handlePrintPdf(viewingFact.fact, viewingFact.index)}
-                                className="sm:hidden flex-1 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-semibold text-xs rounded-lg border border-neutral-700 transition"
+                                className="hidden sm:inline-flex py-2 px-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-semibold text-xs rounded-lg border border-neutral-700 transition"
                             >
                                 🖨️ PDF 인쇄
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setViewingFact(null)}
-                                className="flex-1 sm:flex-initial px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold text-xs rounded-lg transition shadow cursor-pointer"
+                                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold text-xs rounded-lg transition shadow cursor-pointer"
                             >
                                 닫기
                             </button>
