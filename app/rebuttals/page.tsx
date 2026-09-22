@@ -215,9 +215,6 @@ function RebuttalsContent() {
                             <span>📋</span>
                             <span>접수된 반론 목록 ({rebuttals.length}건)</span>
                         </h2>
-                        <Link href="/" className="text-xs text-neutral-400 hover:text-neutral-200">
-                            ← 팩트체크 메인으로 돌아가기
-                        </Link>
                     </div>
 
                     {loading ? (

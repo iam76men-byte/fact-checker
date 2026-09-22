@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Header from './Header';
 import { supabase } from '../lib/supabase';
 import RequestList, { RequestItem } from './RequestList';
 import FactTabs, { FactItem } from './FactTabs';
@@ -27,10 +28,17 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
-    // 브라우저 마운트 완료 후에만 localStorage에 접근 (Hydration Mismatch 방지)
+    // 브라우저 마운트 완료 후에만 localStorage 및 URL 파라미터에 접근 (Hydration Mismatch 방지)
     useEffect(() => {
         setMounted(true);
         try {
+            // URL 쿼리 파라미터의 tab 확인 (?tab=requests, ?tab=about)
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryTab = urlParams.get('tab');
+            if (queryTab === 'requests' || queryTab === 'about' || queryTab === 'facts') {
+                setTab(queryTab);
+            }
+
             let stored = localStorage.getItem('factrepo_citizen_id');
             // 이전의 '진실탐정' 형태 닉네임이 저장되어 있다면 새 명칭 '시민검증자'로 정돈
             if (!stored || stored.includes('진실탐정')) {
@@ -168,95 +176,15 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            {/* 상단 헤더 */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-5">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-black text-white tracking-tight">FactRepo</h1>
-                        <span className="text-[10px] uppercase tracking-wider bg-red-600 text-white font-bold px-1.5 py-0.5 rounded">
-                            Archive
-                        </span>
-                    </div>
-                    <p className="text-xs text-neutral-400 mt-1">
-                        공공데이터 및 공적 기록물 기반 공익 팩트체크 아카이브
-                    </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    <Link
-                        href="/rebuttals"
-                        className="flex items-center gap-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-700/80 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer hover:scale-105 active:scale-95"
-                        title="시민 반론(이의제기) 게시판으로 이동"
-                    >
-                        <span>⚖️</span>
-                        <span>반론 게시판</span>
-                        <span className="bg-amber-500 text-black text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
-                            NEW
-                        </span>
-                    </Link>
-
-                    <div className="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg text-xs">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                        <span className="text-neutral-300 font-medium">
-                            {mounted ? citizenId : '시민 확인 중...'}
-                        </span>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={handleRenewCitizenId}
-                        className="text-[11px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 px-2.5 py-1.5 rounded-lg border border-neutral-700 transition cursor-pointer"
-                        title="새 닉네임 발급"
-                    >
-                        재발급
-                    </button>
-                </div>
-            </header>
-
-            {/* 탭 네비게이션: 모바일 가로 스와이프 지원 */}
-            <nav className="flex items-center gap-2 border-b border-neutral-800 pb-2 overflow-x-auto no-scrollbar">
-                <button
-                    type="button"
-                    onClick={() => setTab('facts')}
-                    className={`shrink-0 whitespace-nowrap px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${tab === 'facts'
-                        ? 'bg-neutral-800 text-white border border-neutral-700 shadow-sm'
-                        : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
-                        }`}
-                >
-                    검증 팩트 리포트 ({facts.length})
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setTab('requests')}
-                    className={`shrink-0 whitespace-nowrap px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${tab === 'requests'
-                        ? 'bg-neutral-800 text-white border border-neutral-700 shadow-sm'
-                        : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
-                        }`}
-                >
-                    검증 의뢰소 ({requests.length})
-                </button>
-                <Link
-                    href="/rebuttals"
-                    className="shrink-0 whitespace-nowrap px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 text-amber-300 hover:text-amber-200 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/70 active:scale-95"
-                    title="시민 반론 게시판 바로가기"
-                >
-                    <span>⚖️</span>
-                    <span>시민 반론 게시판</span>
-                    <span className="bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                        NEW
-                    </span>
-                </Link>
-                <button
-                    type="button"
-                    onClick={() => setTab('about')}
-                    className={`shrink-0 whitespace-nowrap px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${tab === 'about'
-                        ? 'bg-neutral-800 text-white border border-neutral-700 shadow-sm'
-                        : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
-                        }`}
-                >
-                    <span>📖</span>
-                    <span>소개 및 검증원칙 (About)</span>
-                </button>
-            </nav>
+            {/* 상단 글로벌 헤더 및 통합 네비게이션 */}
+            <Header
+                activeTab={tab}
+                onTabChange={(t) => setTab(t)}
+                factsCount={facts.length}
+                requestsCount={requests.length}
+                nickname={mounted ? citizenId : '시민 확인 중...'}
+                onResetIdentity={handleRenewCitizenId}
+            />
 
             {/* 팩트 리포트 탭 */}
             {tab === 'facts' && (

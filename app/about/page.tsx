@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Header from '@/components/Header';
 import AboutSection from '@/components/AboutSection';
 
 export const metadata = {
@@ -10,17 +10,7 @@ export default function AboutPage() {
     return (
         <main className="min-h-screen bg-neutral-900 text-neutral-100 p-4 md:p-8">
             <div className="max-w-4xl mx-auto space-y-6">
-                {/* 상단 네비게이션 */}
-                <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <Link
-                        href="/"
-                        className="text-xs text-neutral-400 hover:text-white flex items-center gap-1.5 transition"
-                    >
-                        <span>&larr;</span>
-                        <span>메인 팩트체크 아카이브로 돌아가기</span>
-                    </Link>
-                    <span className="text-[11px] text-neutral-500 font-mono">FactRepo About</span>
-                </div>
+                <Header activeTab="about" />
 
                 <AboutSection />
 
