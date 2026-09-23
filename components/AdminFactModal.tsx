@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { RequestItem } from './RequestList';
 import { FactItem } from './FactTabs';
+import MarkdownViewer, { markdownToHtml } from './MarkdownViewer';
 
 interface AdminFactModalProps {
     isOpen: boolean;
@@ -28,6 +29,7 @@ export default function AdminFactModal({
     const [sourceUrl, setSourceUrl] = useState('');
     const [hashtags, setHashtags] = useState<string[]>([]);
     const [customTagInput, setCustomTagInput] = useState('');
+    const [sourceViewMode, setSourceViewMode] = useState<'edit' | 'preview'>('edit');
 
     const [submitting, setSubmitting] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
@@ -352,7 +354,7 @@ export default function AdminFactModal({
 
           <div class="section">
             <div class="section-title" style="color: #1d4ed8;">3. AI 팩트 체크</div>
-            <div class="box" style="border-left: 4px solid #3b82f6;">${primarySource}${sourceUrl ? '\n\n참조 근거 원문: ' + sourceUrl : ''}</div>
+            <div class="box" style="border-left: 4px solid #3b82f6;">${markdownToHtml(primarySource)}${sourceUrl ? '<br><br>참조 근거 원문: ' + sourceUrl : ''}</div>
           </div>
 
           <div class="footer">
@@ -642,12 +644,42 @@ export default function AdminFactModal({
                         </div>
                     </div>
 
-                    {/* AI 팩트 체크 영역 */}
+                    {/* AI 팩트 체크 영역 (마크다운 지원) */}
                     <div className="space-y-2">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
-                            <label className="font-semibold text-neutral-200 flex items-center gap-1.5">
-                                <span>🏛️</span> AI 팩트 체크 (근거 자료 및 분석) *
-                            </label>
+                            <div className="flex items-center gap-2">
+                                <label className="font-semibold text-neutral-200 flex items-center gap-1.5">
+                                    <span>🏛️</span> AI 팩트 체크 (근거 자료 및 분석) *
+                                </label>
+                                <span className="text-[10px] bg-blue-950/80 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded font-medium">
+                                    MD 마크다운 지원
+                                </span>
+                                {/* 편집 / 미리보기 탭 토글 */}
+                                <div className="inline-flex rounded-md border border-neutral-700 bg-neutral-900 p-0.5 text-[10px]">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSourceViewMode('edit')}
+                                        className={`px-2 py-0.5 rounded font-medium transition cursor-pointer ${
+                                            sourceViewMode === 'edit'
+                                                ? 'bg-neutral-700 text-white shadow-xs'
+                                                : 'text-neutral-400 hover:text-neutral-200'
+                                        }`}
+                                    >
+                                        ✏️ 편집
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSourceViewMode('preview')}
+                                        className={`px-2 py-0.5 rounded font-medium transition cursor-pointer ${
+                                            sourceViewMode === 'preview'
+                                                ? 'bg-blue-600 text-white shadow-xs'
+                                                : 'text-neutral-400 hover:text-neutral-200'
+                                        }`}
+                                    >
+                                        👁️ 미리보기
+                                    </button>
+                                </div>
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleSummarizeEvidence}
@@ -659,14 +691,21 @@ export default function AdminFactModal({
                                 <span>{summarizingEvidence ? 'AI 팩트 체크 분석 중...' : 'AI 팩트 체크 기반 핵심 사실 요약 생성'}</span>
                             </button>
                         </div>
-                        <textarea
-                            required
-                            rows={4}
-                            placeholder="예: 법원 판결문 원문, 법령 조항, 공공기관 답변서, 국가통계 원천 수치 등 실제 교차검증 근거를 입력하세요. 입력 후 위의 [✨ AI 팩트 체크 기반 핵심 사실 요약 생성] 버튼을 누르면 사실 요약과 해시태그 5개가 완성됩니다."
-                            value={primarySource}
-                            onChange={(e) => setPrimarySource(e.target.value)}
-                            className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
-                        />
+
+                        {sourceViewMode === 'edit' ? (
+                            <textarea
+                                required
+                                rows={6}
+                                placeholder="예: 판결문 원문, 통계 지표, 법령 조항 등 마크다운(MD) 형식으로 자유롭게 작성하세요.&#10;# 큰 제목, ## 소제목, **굵게**, 1. 번호 목록, - 글머리 기호, > 인용문 등 모든 마크다운 서식이 지원됩니다."
+                                value={primarySource}
+                                onChange={(e) => setPrimarySource(e.target.value)}
+                                className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                            />
+                        ) : (
+                            <div className="w-full bg-neutral-900/90 border border-neutral-700 rounded-md p-3.5 text-white min-h-[140px] max-h-[300px] overflow-y-auto leading-relaxed">
+                                <MarkdownViewer content={primarySource} />
+                            </div>
+                        )}
 
                         {/* 요약 생성 버튼 바로 밑: 해시태그 표시 및 편집 영역 */}
                         <div className="bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-3 space-y-2">

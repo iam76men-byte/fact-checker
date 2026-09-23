@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
+import MarkdownViewer, { markdownToHtml } from './MarkdownViewer';
 
 export interface FactItem {
     id: number;
@@ -358,7 +359,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
 
           <div class="section">
             <div class="section-title source-title">3. AI 팩트 체크</div>
-            <div class="box">${cleanBracketHeader(fact.primary_source) || '기록된 내용이 없습니다.'}${fact.source_url ? '\n\n참조 원문 링크: ' + fact.source_url : ''}</div>
+            <div class="box">${markdownToHtml(cleanBracketHeader(fact.primary_source) || fact.primary_source) || '기록된 내용이 없습니다.'}${fact.source_url ? '<br><br>참조 원문 링크: <a href="' + fact.source_url + '">' + fact.source_url + '</a>' : ''}</div>
           </div>
 
           <div class="footer">
@@ -727,8 +728,8 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
                                     <span>🏛️</span>
                                     <span>3. AI 팩트 체크</span>
                                 </div>
-                                <div className="text-neutral-200 whitespace-pre-wrap leading-relaxed text-xs sm:text-sm font-sans pt-1">
-                                    {cleanBracketHeader(viewingFact.fact.primary_source) || '기록된 내용이 없습니다.'}
+                                <div className="pt-1">
+                                    <MarkdownViewer content={cleanBracketHeader(viewingFact.fact.primary_source) || viewingFact.fact.primary_source || '기록된 내용이 없습니다.'} />
                                 </div>
 
                                 {viewingFact.fact.source_url && (
