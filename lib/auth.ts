@@ -5,11 +5,18 @@ export const NAVER_DISPLAY_ID_COOKIE = 'factrepo_naver_display_id';
 export const NAVER_STATE_COOKIE = 'factrepo_oauth_state';
 export const NAVER_RETURN_COOKIE = 'factrepo_auth_return';
 
+export const SIMPLE_SESSION_COOKIE = 'factrepo_simple_uid';
+export const SIMPLE_DISPLAY_ID_COOKIE = 'factrepo_simple_display_id';
+
 export interface NaverUserSession {
     id: string; // 내부 고유 식별 ID
     displayId: string; // 화면 표시용 네이버 ID (예: iam76men)
     maskedId: string; // 표시용 (사용자가 원하는 실제 아이디 형식)
+    provider?: 'naver' | 'recaptcha' | 'simple';
 }
+
+export type UserSession = NaverUserSession;
+
 
 /**
  * 네이버 인가 URL 생성
@@ -115,18 +122,44 @@ export async function getNaverProfile(accessToken: string): Promise<{ id: string
 }
 
 /**
- * 서버 사이드에서 현재 세션의 네이버 유저 정보 확인
+ * 서버 사이드에서 현재 세션의 유저 정보 확인 (단순 로그인 및 네이버 로그인 통합)
  */
-export async function getServerNaverUser(): Promise<NaverUserSession | null> {
+export async function getServerUser(): Promise<UserSession | null> {
     const cookieStore = await cookies();
-    const userId = cookieStore.get(NAVER_SESSION_COOKIE)?.value;
-    const displayId = cookieStore.get(NAVER_DISPLAY_ID_COOKIE)?.value || userId || '';
 
-    if (!userId) return null;
+    // 1. 단순 로그인(reCAPTCHA 간편 로그인) 세션 확인
+    const simpleUid = cookieStore.get(SIMPLE_SESSION_COOKIE)?.value;
+    const simpleDisplayId = cookieStore.get(SIMPLE_DISPLAY_ID_COOKIE)?.value;
 
-    return {
-        id: userId,
-        displayId: displayId,
-        maskedId: displayId, // 사용자가 원하는 형식 (예: iam76men)
-    };
+    if (simpleUid && simpleDisplayId) {
+        return {
+            id: simpleUid,
+            displayId: simpleDisplayId,
+            maskedId: simpleDisplayId,
+            provider: 'recaptcha',
+        };
+    }
+
+    // 2. 네이버 로그인 세션 확인
+    const naverUserId = cookieStore.get(NAVER_SESSION_COOKIE)?.value;
+    const naverDisplayId = cookieStore.get(NAVER_DISPLAY_ID_COOKIE)?.value || naverUserId || '';
+
+    if (naverUserId) {
+        return {
+            id: naverUserId,
+            displayId: naverDisplayId,
+            maskedId: naverDisplayId,
+            provider: 'naver',
+        };
+    }
+
+    return null;
 }
+
+/**
+ * 기존 코드 호환을 위한 getServerNaverUser (내부적으로 getServerUser 호출)
+ */
+export async function getServerNaverUser(): Promise<UserSession | null> {
+    return getServerUser();
+}
+

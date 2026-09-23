@@ -28,8 +28,13 @@ FactRepo는 인터넷과 소셜 미디어에 만연한 정파적 왜곡과 가�
 - **철저한 근거 중심**: 최대 2,000자 제한과 200KB 이하 참고문헌 파일 첨부를 지원하여 허위 비방을 방지하고 실질적인 사료를 교차검증합니다.
 - **개인 비밀번호 기반 정정/삭제**: 작성 시 설정한 비밀번호로 본인 글만 안전하게 수정하거나 삭제(Soft Delete, `is_deleted = true`)할 수 있습니다.
 
-### 6. 관리자 검증 스튜디오 (Admin Studio)
+### 6. Google reCAPTCHA v3 간편 시민 로그인 (Simple Citizen Login)
+- **별도 소셜 심사 없는 원터치 로그인**: 네이버 등의 복잡한 앱 검증 절차 없이도 사용자 닉네임 입력과 Google reCAPTCHA v3 봇 점수 검증(인간 판별)을 통해 1초 만에 안전하게 세션을 발급받습니다.
+- **연속적 인터랙션 지원**: 비로그인 상태에서 추천/비추천 투표나 글쓰기 클릭 시, 간편 로그인 완료 즉시 누르고자 했던 동작이 자동으로 이어져 편리한 시민 참여를 보장합니다.
+
+### 7. 관리자 검증 스튜디오 (Admin Studio)
 - 접수된 의뢰의 승인/검증 전환, 팩트체크 보고서 작성 및 판정 결과 배지(사실, 대체로 사실, 절반의 사실, 대체로 사실 아님, 사실 아님)를 체계적으로 관리합니다.
+
 
 ---
 
@@ -69,9 +74,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 # Google Gemini API 키 (AI 초안 생성용)
 GEMINI_API_KEY=your_gemini_api_key
 
+# Google reCAPTCHA v3 (간편 로그인 및 봇 방지)
+# https://www.google.com/recaptcha/admin 에서 v3 키 발급 (미입력 시 개발 모드로 자동 동작)
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY=your_recaptcha_site_key
+RECAPTCHA_SECRET_KEY=your_recaptcha_secret_key
+
 # 관리자 비밀번호 (옵션)
 ADMIN_PASSWORD=your_admin_password
 ```
+
 
 ### 4. 로컬 개발 서버 실행 (Run Dev Server)
 ```bash

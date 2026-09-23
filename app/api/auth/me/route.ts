@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerNaverUser } from '@/lib/auth';
+import { getServerUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const user = await getServerNaverUser();
+        const user = await getServerUser();
+
 
         if (!user) {
             return NextResponse.json({

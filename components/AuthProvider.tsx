@@ -1,12 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import LoginPromptModal from './LoginPromptModal';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import SimpleLoginModal from './SimpleLoginModal';
 
 export interface AuthUser {
-    id: string; // 네이버 고유 식별 ID
-    displayId?: string; // 화면에 표시할 네이버 ID (예: iam76men)
+    id: string; // 고유 식별 ID
+    displayId?: string; // 화면에 표시할 닉네임/ID
     maskedId: string;
+    provider?: 'naver' | 'recaptcha' | 'simple';
 }
 
 interface AuthContextType {
@@ -33,8 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // 로그인 유도 모달 상태
+    // 로그인 유도 모달 상태 및 로그인 후 대기 중인 액션
     const [promptActionName, setPromptActionName] = useState<string | null>(null);
+    const pendingActionRef = useRef<(() => void) | null>(null);
 
     const refresh = useCallback(async () => {
         try {
@@ -60,9 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refresh();
     }, [refresh]);
 
-    const login = useCallback((returnTo?: string) => {
-        const dest = returnTo || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
-        window.location.href = `/api/auth/naver/login?returnTo=${encodeURIComponent(dest)}`;
+    const login = useCallback((_returnTo?: string) => {
+        // 간편 로그인 모달 열기
+        setPromptActionName('로그인');
     }, []);
 
     const logout = useCallback(async () => {
@@ -84,12 +86,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // 이미 로그인되어 있는 경우 즉시 허용
                 onAuthorized();
             } else {
-                // 비로그인 상태인 경우 모달 노출
+                // 비로그인 상태인 경우 모달 노출 및 로그인 완료 시 실행할 콜백 예약
+                pendingActionRef.current = onAuthorized;
                 setPromptActionName(actionName);
             }
         },
         [user]
     );
+
+    const handleLoginSuccess = (newUser: AuthUser) => {
+        setUser(newUser);
+        setPromptActionName(null);
+
+        // 만약 로그인 이전에 누른 액션(예: 추천 투표, 글쓰기 등)이 대기 중이었다면 즉시 실행
+        if (pendingActionRef.current) {
+            const action = pendingActionRef.current;
+            pendingActionRef.current = null;
+            setTimeout(() => {
+                action();
+            }, 100);
+        }
+    };
 
     return (
         <AuthContext.Provider
@@ -105,15 +122,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         >
             {children}
 
-            {/* 비로그인 권한 요청 시 공통 안내 모달 */}
-            <LoginPromptModal
+            {/* Google reCAPTCHA v3 기반 간편 로그인 모달 */}
+            <SimpleLoginModal
                 isOpen={!!promptActionName}
                 actionName={promptActionName || '이용'}
-                onClose={() => setPromptActionName(null)}
-                onLogin={() => {
+                onClose={() => {
                     setPromptActionName(null);
-                    login();
+                    pendingActionRef.current = null;
                 }}
+                onSuccess={handleLoginSuccess}
             />
         </AuthContext.Provider>
     );
@@ -122,3 +139,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
     return useContext(AuthContext);
 }
+

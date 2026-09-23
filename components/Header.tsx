@@ -67,10 +67,19 @@ export default function Header({
                         <div className="text-[11px] text-neutral-500 py-1">인증 확인 중...</div>
                     ) : isLoggedIn && user ? (
                         <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-1.5 bg-neutral-800/90 border border-emerald-600/40 px-2.5 py-1 rounded-lg text-xs shadow-sm" title={`네이버 ID: ${user.displayId || user.maskedId}`}>
-                                <span className="w-4 h-4 rounded bg-[#03c75a] text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                                    N
-                                </span>
+                            <div
+                                className="flex items-center gap-1.5 bg-neutral-800/90 border border-neutral-700 px-2.5 py-1 rounded-lg text-xs shadow-sm"
+                                title={user.provider === 'naver' ? `네이버 로그인: ${user.displayId || user.maskedId}` : `간편 시민 로그인: ${user.displayId || user.maskedId}`}
+                            >
+                                {user.provider === 'naver' ? (
+                                    <span className="w-4 h-4 rounded bg-[#03c75a] text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                                        N
+                                    </span>
+                                ) : (
+                                    <span className="text-cyan-400 text-xs shrink-0">
+                                        🛡️
+                                    </span>
+                                )}
                                 <span className="text-neutral-200 font-medium">{user.displayId || user.maskedId}</span>
                             </div>
                             <button
@@ -86,13 +95,11 @@ export default function Header({
                         <button
                             type="button"
                             onClick={() => login()}
-                            title="네이버 아이디로 로그인 (추천/비추천 및 글쓰기에 필요)"
-                            className="flex items-center gap-1.5 bg-[#03c75a] hover:bg-[#02b350] active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
+                            title="Google reCAPTCHA v3 보안 간편 로그인 (추천/비추천 및 글쓰기 지원)"
+                            className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
                         >
-                            <span className="w-3.5 h-3.5 rounded-xs bg-white text-[#03c75a] text-[10px] font-black flex items-center justify-center">
-                                N
-                            </span>
-                            <span>네이버 로그인</span>
+                            <span className="text-xs">🛡️</span>
+                            <span>간편 로그인</span>
                         </button>
                     )}
                 </div>
