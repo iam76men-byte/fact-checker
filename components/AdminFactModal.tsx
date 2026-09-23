@@ -147,6 +147,9 @@ export default function AdminFactModal({
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || '요약 생성 실패');
 
+            if (data.distortion) {
+                setDistortion(data.distortion);
+            }
             if (data.fact_summary) {
                 setFactSummary(data.fact_summary);
             }

@@ -421,13 +421,32 @@ function generateSmartDistortionDraft(title: string, articleContext: string = ''
         ];
         direction = `공식 직무 규정, 사법부 판결문, 공문서 및 당사자 진술을 교차 대조하여 단순 추측과 실체적 사실관계 구분 검증`;
     } else if (speaker && mainQuote) {
-        // [정치인/주요 인물 발언형] - 예: 오세훈 "박원순 前시장이 서울정비사업 해제 유도"
-        background = `${speaker} 측의 공개 발언("${mainQuote}") 및 이에 따른 언론 보도로 촉발된 정비·정책적 공방`;
-        targets = [
-            `1. 발언에서 거론된 핵심 사실관계("${mainQuote}") 관련 수치, 제도, 행정 조치의 실재 여부`,
-            `2. 발언의 인과관계 주장(예: 특정 행정 조치로 인한 현재의 공급 차질 등)이 공적 기록에 부합하는지 객관적 타당성 검증`
-        ];
-        direction = `관계 부처 및 지자체 공식 행정 백서, 조례 개정 이력, 공식 통계자료를 교차검증하여 발언 내용의 사실 부합성 검증`;
+        // [주요 인물/기관 발언형]
+        const isLegalOrConstitutional = /헌법|위헌|합헌|법률|대법원|사법|법원|임명권|재제청|검찰|수사|기소|불기소|판결/i.test(trimmedTitle);
+        const isPolicyOrRealEstate = /정비|재개발|공급|부동산|아파트|해제|규제|세금/i.test(trimmedTitle);
+
+        if (isLegalOrConstitutional) {
+            background = `${speaker} 측의 공식 발표("${mainQuote}") 및 이에 따른 헌법적 권한쟁의와 법리적 공방`;
+            targets = [
+                `1. 발언에서 거론된 위헌·위법 주장("${mainQuote}")이 대한민국 헌법 조항, 법원조직법 규정 및 사법부 판례에 부합하는지 여부`,
+                `2. 대통령의 헌법상 임명권과 사법부의 헌법상 제청권 간의 권한 한계 및 학설·해석상 대립 실체 규명`
+            ];
+            direction = `헌법 조항, 법원조직법 관련 규정, 헌법재판소 판례 및 법학계 공인 학설을 교차 분석하여 위법/위헌 여부의 실체적 진위 검증`;
+        } else if (isPolicyOrRealEstate) {
+            background = `${speaker} 측의 공개 발언("${mainQuote}") 및 이에 따른 정책적 공방`;
+            targets = [
+                `1. 발언에서 거론된 핵심 사실관계("${mainQuote}") 관련 공적 통계, 조례, 행정 조치의 실재 여부`,
+                `2. 발언의 인과관계 주장과 실제 행정 절차 간의 부합성 검증`
+            ];
+            direction = `관계 부처 및 지자체 공식 행정 백서, 조례 개정 이력, 공식 통계자료를 교차검증하여 발언 내용의 사실 부합성 검증`;
+        } else {
+            background = `${speaker} 측의 공개 발언("${mainQuote}") 및 이에 따른 언론 보도와 진위 공방`;
+            targets = [
+                `1. 발언의 핵심 주장("${mainQuote}")을 뒷받침하는 객관적 사실관계 및 실증 데이터의 실재 여부`,
+                `2. 발언 맥락의 왜곡, 과장이나 일방적 정치적 프레임 개입 여부 검증`
+            ];
+            direction = `공인된 1차 공적 기록물 및 관련 기관 공식 발표를 교차 대조하여 발언 내용의 객관적 사실 부합성 검증`;
+        }
     } else {
         // [일반 안건]
         background = `언론 보도 및 공론장을 통해 제기된 [${trimmedTitle}] 관련 주요 쟁점`;
@@ -549,7 +568,9 @@ ${trimmedSource}
                                 }
                             }
 
+                            const updatedDistortion = generateSmartDistortionDraft(title, trimmedSource);
                             return NextResponse.json({
+                                distortion: updatedDistortion,
                                 fact_summary: parsed.fact_summary,
                                 hashtags: finalTags.slice(0, 5),
                             });
@@ -561,9 +582,11 @@ ${trimmedSource}
             }
 
             // Fallback (스마트 요약기 및 인명 최우선 스마트 추출기)
+            const fallbackDistortion = generateSmartDistortionDraft(title, trimmedSource);
             const fallbackSummary = generateFactSummaryFromEvidence(title, currentDistortion, trimmedSource);
             const fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
             return NextResponse.json({
+                distortion: fallbackDistortion,
                 fact_summary: fallbackSummary,
                 hashtags: fallbackHashtags,
             });
