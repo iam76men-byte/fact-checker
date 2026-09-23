@@ -10,13 +10,56 @@ marked.setOptions({
 });
 
 /**
+ * 취소선/삭제표시(~~...~~, <del>...</del>, <s>...</s>, <strike>...</strike>)된 내용을
+ * 본문에서 완전히 제외(제거)하는 함수
+ */
+export function removeDeletedContent(text: string): string {
+    if (!text) return '';
+    return text
+        .replace(/~~[\s\S]*?~~/g, '')
+        .replace(/<del\b[^>]*>[\s\S]*?<\/del>/gi, '')
+        .replace(/<s\b[^>]*>[\s\S]*?<\/s>/gi, '')
+        .replace(/<strike\b[^>]*>[\s\S]*?<\/strike>/gi, '');
+}
+
+/**
+ * 한국어에서 기간/범위(예: 1997~1998, 20~40%, 2~3년)에 쓰인 단일 물결표(~)가
+ * 마크다운 취소선으로 잘못 인식되는 것을 방지하기 위해 이스케이프
+ */
+export function normalizeTildes(text: string): string {
+    if (!text) return '';
+    const tildePlaceholders: string[] = [];
+    let protectedText = text.replace(/~~([\s\S]*?)~~/g, (match) => {
+        tildePlaceholders.push(match);
+        return `___TILDE_STRIKE_${tildePlaceholders.length - 1}___`;
+    });
+
+    // 단일 물결표를 HTML 엔티티로 변환하여 취소선 파싱 방지
+    protectedText = protectedText.replace(/~/g, '&#126;');
+
+    // 이중 물결 취소선 복원
+    protectedText = protectedText.replace(/___TILDE_STRIKE_(\d+)___/g, (_, idx) => {
+        return tildePlaceholders[Number(idx)];
+    });
+
+    return protectedText;
+}
+
+/**
  * 테이블 중간에 빈 줄이 들어가거나, 긴 셀 내용이 여러 줄로 쪼개져 
- * 마크다운 파서가 테이블을 비정상 종료하는 현상을 방지하는 전처리 함수
+ * 마크다운 파서가 테이블을 비정상 종료하는 현상을 방지하고, 삭제 표시 및 물결표를 정규화하는 전처리 함수
  */
 export function preprocessMarkdown(text: string): string {
     if (!text) return '';
 
-    const lines = text.split(/\r?\n/);
+    // 1. 삭제표시(취소선) 내용 제외
+    let processed = removeDeletedContent(text);
+
+    // 2. 단일 물결표(범위 표시) 오작동 방지
+    processed = normalizeTildes(processed);
+
+    // 3. 테이블 구조 보정
+    const lines = processed.split(/\r?\n/);
     const resultLines: string[] = [];
     let insideTable = false;
 

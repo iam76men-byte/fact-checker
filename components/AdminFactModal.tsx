@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { RequestItem } from './RequestList';
 import { FactItem } from './FactTabs';
-import MarkdownViewer, { markdownToHtml } from './MarkdownViewer';
+import MarkdownViewer, { markdownToHtml, removeDeletedContent } from './MarkdownViewer';
 
 interface AdminFactModalProps {
     isOpen: boolean;
@@ -521,7 +521,12 @@ export default function AdminFactModal({
             return;
         }
 
-        if (!title.trim() || !distortion.trim() || !factSummary.trim() || !primarySource.trim()) {
+        const cleanTitle = removeDeletedContent(title).trim();
+        const cleanDistortion = removeDeletedContent(distortion).trim();
+        const cleanFactSummary = removeDeletedContent(factSummary).trim();
+        const cleanPrimarySource = removeDeletedContent(primarySource).trim();
+
+        if (!cleanTitle || !cleanDistortion || !cleanFactSummary || !cleanPrimarySource) {
             alert('모든 필수 항목을 입력해주세요.');
             return;
         }
@@ -535,10 +540,10 @@ export default function AdminFactModal({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    title: title.trim(),
-                    distortion: distortion.trim(),
-                    fact_summary: factSummary.trim(),
-                    primary_source: primarySource.trim(),
+                    title: cleanTitle,
+                    distortion: cleanDistortion,
+                    fact_summary: cleanFactSummary,
+                    primary_source: cleanPrimarySource,
                     hashtags: hashtags,
                 }),
             });
@@ -556,10 +561,10 @@ export default function AdminFactModal({
 
         const factPayload: any = {
             request_id: selectedReqId ? Number(selectedReqId) : null,
-            title: title.trim(),
-            distortion: distortion.trim(),
-            fact_summary: factSummary.trim(),
-            primary_source: primarySource.trim(),
+            title: cleanTitle,
+            distortion: cleanDistortion,
+            fact_summary: cleanFactSummary,
+            primary_source: cleanPrimarySource,
             source_url: sourceUrl.trim() || null,
             pdf_url: generatedPdfUrl,
             hashtags: cleanHashtags,
