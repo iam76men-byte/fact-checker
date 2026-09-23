@@ -28,22 +28,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         {recaptchaSiteKey && (
           <Script
             id="recaptcha-v3-script"
             src={`https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`}
             strategy="lazyOnload"
           />
-
         )}
-      </head>
-      <body className="min-h-full flex flex-col">
-
-        <AuthProvider>
-          {children}
-        </AuthProvider>
       </body>
     </html>
   );
 }
+
