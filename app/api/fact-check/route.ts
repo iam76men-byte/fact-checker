@@ -548,22 +548,28 @@ ${trimmedSource}
                                     .map((t: string) => `#${t}`);
                             }
 
-                            // 기존 태그를 최우선 유지하면서 중복 제거 및 부족분 보충
-                            const finalTags: string[] = cleanExistingTags.map(t => `#${t}`);
-                            for (const gt of geminiTags) {
-                                if (finalTags.length >= 5) break;
-                                if (!finalTags.includes(gt)) {
-                                    finalTags.push(gt);
-                                }
-                            }
-
-                            // 그래도 5개 미만이면 스마트 추출기(인명 감지 포함)로 보충
-                            if (finalTags.length < 5) {
-                                const smartFallback = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
-                                for (const fb of smartFallback) {
+                            // 해시태그 결정:
+                            // 1. 이미 5개 이상 존재하면 기존 목록 100% 무조건 그대로 보존 (절대 변경 안 함!)
+                            let finalTags: string[];
+                            if (cleanExistingTags.length >= 5) {
+                                finalTags = cleanExistingTags.slice(0, 5).map(t => `#${t}`);
+                            } else {
+                                // 2. 5개 미만이면 기존 태그를 최우선 유지하고 부족분만 Gemini 및 스마트 추출기에서 보충
+                                finalTags = cleanExistingTags.map(t => `#${t}`);
+                                for (const gt of geminiTags) {
                                     if (finalTags.length >= 5) break;
-                                    if (!finalTags.includes(fb)) {
-                                        finalTags.push(fb);
+                                    if (!finalTags.includes(gt)) {
+                                        finalTags.push(gt);
+                                    }
+                                }
+
+                                if (finalTags.length < 5) {
+                                    const smartFallback = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
+                                    for (const fb of smartFallback) {
+                                        if (finalTags.length >= 5) break;
+                                        if (!finalTags.includes(fb)) {
+                                            finalTags.push(fb);
+                                        }
                                     }
                                 }
                             }
@@ -584,11 +590,16 @@ ${trimmedSource}
             // Fallback (스마트 요약기 및 인명 최우선 스마트 추출기)
             const fallbackDistortion = generateSmartDistortionDraft(title, trimmedSource);
             const fallbackSummary = generateFactSummaryFromEvidence(title, currentDistortion, trimmedSource);
-            const fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
+            let fallbackHashtags: string[];
+            if (cleanExistingTags.length >= 5) {
+                fallbackHashtags = cleanExistingTags.slice(0, 5).map(t => `#${t}`);
+            } else {
+                fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
+            }
             return NextResponse.json({
                 distortion: fallbackDistortion,
                 fact_summary: fallbackSummary,
-                hashtags: fallbackHashtags,
+                hashtags: fallbackHashtags.slice(0, 5),
             });
         }
 

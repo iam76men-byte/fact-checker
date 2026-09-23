@@ -158,20 +158,21 @@ export default function AdminFactModal({
                     .map((t: string) => String(t).replace(/^#/, '').trim())
                     .filter(Boolean);
 
-                // 이미 5개 등록되어 있는 경우 변경하지 않고 유지
-                if (hashtags.length >= 5) {
-                    // 기존 해시태그 유지
-                } else {
-                    // 기존 태그를 최우선 유지하고 부족한 개수(최대 5개까지)만 신규 태그로 보충
-                    const merged = [...hashtags];
+                setHashtags((currentTags) => {
+                    // 이미 5개 이상 등록되어 있는 경우 100% 무조건 기존 태그 그대로 유지 (절대 변경 안 함!)
+                    if (currentTags.length >= 5) {
+                        return currentTags;
+                    }
+                    // 5개 미만인 경우 기존 태그를 최우선 유지하고 부족한 개수만 신규 태그로 보충하여 정확히 5개로 맞춤
+                    const merged = [...currentTags];
                     for (const tag of incoming) {
                         if (merged.length >= 5) break;
                         if (!merged.includes(tag)) {
                             merged.push(tag);
                         }
                     }
-                    setHashtags(merged);
-                }
+                    return merged;
+                });
             }
         } catch (err: any) {
             alert('AI 팩트 체크 기반 사실 요약 실패: ' + err.message);
@@ -601,13 +602,25 @@ export default function AdminFactModal({
                     {/* 왜곡 vs 사실: 2열 나란히 배치 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                         <div>
-                            <label className="block font-semibold text-red-400 mb-1 flex items-center gap-1">
-                                <span>❌</span> 왜곡된 주장 / 프레임 *
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block font-semibold text-red-400 flex items-center gap-1">
+                                    <span>❌</span> 왜곡된 주장 / 프레임 *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => generateDistortionOnly(title, sourceUrl)}
+                                    disabled={generatingAI || !title.trim()}
+                                    className="px-2 py-0.5 bg-red-950/80 hover:bg-red-900 text-red-300 text-[10px] font-semibold rounded border border-red-700/80 transition cursor-pointer flex items-center gap-1 active:scale-95 disabled:opacity-40"
+                                    title="리포트 제목을 기반으로 어떤 내용을 검증할 것인가 초안을 즉시 생성합니다"
+                                >
+                                    <span>{generatingAI ? '⏳' : '⚡'}</span>
+                                    <span>{generatingAI ? '분석 중...' : '검증 대상/프레임 즉시 생성'}</span>
+                                </button>
+                            </div>
                             <textarea
                                 required
                                 rows={7}
-                                placeholder="예: 제기된 의혹의 핵심 요지 및 사실과 다른 과장·왜곡 프레임"
+                                placeholder="예: 제기된 의혹의 핵심 요지 및 어떤 내용을 검증할 것인가 (우측 상단 '검증 대상/프레임 즉시 생성' 또는 아래 '요약 생성' 클릭 시 자동 생성)"
                                 value={distortion}
                                 onChange={(e) => setDistortion(e.target.value)}
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white leading-relaxed focus:outline-none focus:border-red-500 font-mono text-[11px]"
@@ -659,7 +672,7 @@ export default function AdminFactModal({
                         <div className="bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-3 space-y-2">
                             <div className="flex items-center justify-between">
                                 <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1">
-                                    <span>🏷️</span> 핵심 해시태그 (요약 생성 시 자동 5개 추출)
+                                    <span>🏷️</span> 핵심 해시태그 (이미 등록된 태그 유지 / 5개 미만 시 자동 보충)
                                 </span>
                                 <span className="text-[10px] text-neutral-400">
                                     {hashtags.length}개 등록됨
@@ -670,7 +683,7 @@ export default function AdminFactModal({
                             <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
                                 {hashtags.length === 0 ? (
                                     <span className="text-[11px] text-neutral-500 italic">
-                                        아직 추출된 해시태그가 없습니다. 위 [AI 팩트 체크 기반 핵심 사실 요약 생성] 버튼을 누르면 자동으로 5개가 생성됩니다.
+                                        등록된 해시태그가 없습니다. 위 [AI 팩트 체크 기반 핵심 사실 요약 생성] 버튼을 누르면 인명 및 핵심 키워드로 5개가 자동 생성됩니다.
                                     </span>
                                 ) : (
                                     hashtags.map((tag) => (
