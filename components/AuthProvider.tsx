@@ -7,7 +7,7 @@ export interface AuthUser {
     id: string; // 고유 식별 ID
     displayId?: string; // 화면에 표시할 닉네임/ID
     maskedId: string;
-    provider?: 'naver' | 'recaptcha' | 'simple';
+    provider?: string;
 }
 
 interface AuthContextType {

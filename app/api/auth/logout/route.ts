@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    NAVER_SESSION_COOKIE,
-    NAVER_DISPLAY_ID_COOKIE,
-    SIMPLE_SESSION_COOKIE,
-    SIMPLE_DISPLAY_ID_COOKIE,
-} from '@/lib/auth';
+import { SESSION_COOKIE, DISPLAY_ID_COOKIE } from '@/lib/auth';
 
-export async function POST(request: NextRequest) {
+function clearAllAuthCookies(response: NextResponse) {
+    response.cookies.delete(SESSION_COOKIE);
+    response.cookies.delete(DISPLAY_ID_COOKIE);
+    // 기존 레거시 쿠키 정리
+    response.cookies.delete('factrepo_simple_uid');
+    response.cookies.delete('factrepo_simple_display_id');
+    response.cookies.delete('factrepo_naver_uid');
+    response.cookies.delete('factrepo_naver_display_id');
+    response.cookies.delete('factrepo_oauth_state');
+    response.cookies.delete('factrepo_auth_return');
+}
+
+export async function POST(_request: NextRequest) {
     const response = NextResponse.json({ ok: true, loggedIn: false });
-    response.cookies.delete(NAVER_SESSION_COOKIE);
-    response.cookies.delete(NAVER_DISPLAY_ID_COOKIE);
-    response.cookies.delete(SIMPLE_SESSION_COOKIE);
-    response.cookies.delete(SIMPLE_DISPLAY_ID_COOKIE);
+    clearAllAuthCookies(response);
     return response;
 }
 
@@ -20,10 +24,6 @@ export async function GET(request: NextRequest) {
     const returnTo = searchParams.get('returnTo') || '/';
 
     const response = NextResponse.redirect(new URL(returnTo, request.url));
-    response.cookies.delete(NAVER_SESSION_COOKIE);
-    response.cookies.delete(NAVER_DISPLAY_ID_COOKIE);
-    response.cookies.delete(SIMPLE_SESSION_COOKIE);
-    response.cookies.delete(SIMPLE_DISPLAY_ID_COOKIE);
+    clearAllAuthCookies(response);
     return response;
 }
-

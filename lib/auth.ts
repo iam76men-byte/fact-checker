@@ -1,165 +1,35 @@
 import { cookies } from 'next/headers';
 
-export const NAVER_SESSION_COOKIE = 'factrepo_naver_uid';
-export const NAVER_DISPLAY_ID_COOKIE = 'factrepo_naver_display_id';
-export const NAVER_STATE_COOKIE = 'factrepo_oauth_state';
-export const NAVER_RETURN_COOKIE = 'factrepo_auth_return';
+export const SESSION_COOKIE = 'factrepo_citizen_uid';
+export const DISPLAY_ID_COOKIE = 'factrepo_citizen_name';
 
-export const SIMPLE_SESSION_COOKIE = 'factrepo_simple_uid';
-export const SIMPLE_DISPLAY_ID_COOKIE = 'factrepo_simple_display_id';
+// 기존 쿠키 호환
+export const SIMPLE_SESSION_COOKIE = SESSION_COOKIE;
+export const SIMPLE_DISPLAY_ID_COOKIE = DISPLAY_ID_COOKIE;
 
-export interface NaverUserSession {
-    id: string; // 내부 고유 식별 ID
-    displayId: string; // 화면 표시용 네이버 ID (예: iam76men)
-    maskedId: string; // 표시용 (사용자가 원하는 실제 아이디 형식)
-    provider?: 'naver' | 'recaptcha' | 'simple';
-}
-
-export type UserSession = NaverUserSession;
-
-
-/**
- * 네이버 인가 URL 생성
- */
-export function getNaverAuthorizeUrl(state: string, redirectUri: string): string {
-    const clientId = process.env.NAVER_CLIENT_ID || '';
-    const params = new URLSearchParams({
-        response_type: 'code',
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        state: state,
-        auth_type: 'reprompt', // 기존 연동자에게도 새로 추가된 '이메일' 동의 화면을 강제로 띄움
-    });
-
-    return `https://nid.naver.com/oauth2.0/authorize?${params.toString()}`;
+export interface UserSession {
+    id: string; // 고유 식별 ID
+    displayId: string; // 화면 표시용 닉네임 (예: 시민검증자)
+    maskedId: string;
 }
 
 /**
- * 네이버 접근 토큰(Access Token) 발급 요청
- */
-export async function exchangeNaverToken(code: string, state: string, redirectUri?: string) {
-    const clientId = process.env.NAVER_CLIENT_ID || '';
-    const clientSecret = process.env.NAVER_CLIENT_SECRET || '';
-
-    const params = new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        state,
-    });
-
-    if (redirectUri) {
-        params.append('redirect_uri', redirectUri);
-    }
-
-    const res = await fetch(`https://nid.naver.com/oauth2.0/token?${params.toString()}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        cache: 'no-store',
-    });
-
-    if (!res.ok) {
-        throw new Error(`Naver token exchange failed with status ${res.status}`);
-    }
-
-    const data = await res.json();
-    if (data.error) {
-        throw new Error(`Naver token error: ${data.error_description || data.error}`);
-    }
-
-    return data.access_token as string;
-}
-
-/**
- * 네이버 프로필 조회:
- * 네이버 정책상 실제 아이디(iam76men)는 이메일(iam76men@naver.com)의 @ 앞자리로 전달됩니다.
- * 이메일이 제공되면 @ 앞부분을 displayId로 사용하고, 없으면 별명(nickname), 둘 다 없으면 고유 ID 사용.
- */
-export async function getNaverProfile(accessToken: string): Promise<{ id: string; displayId: string }> {
-    const res = await fetch('https://openapi.naver.com/v1/nid/me', {
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-        },
-        cache: 'no-store',
-    });
-
-    if (!res.ok) {
-        throw new Error(`Naver profile fetch failed with status ${res.status}`);
-    }
-
-    const data = await res.json();
-    if (data.resultcode !== '00' || !data.response?.id) {
-        throw new Error(`Invalid Naver profile response: ${data.message || 'ID not found'}`);
-    }
-
-    console.log('[FactRepo Naver Auth] Profile data received:', {
-        hasEmail: !!data.response.email,
-        email: data.response.email,
-        nickname: data.response.nickname,
-        id: data.response.id,
-    });
-
-    const uniqueId = String(data.response.id);
-    let displayId = '';
-
-    if (data.response.email) {
-        // 예: iam76men@naver.com -> iam76men
-        displayId = data.response.email.split('@')[0];
-    } else if (data.response.nickname) {
-        displayId = String(data.response.nickname);
-    } else {
-        // 이메일이나 별명이 제공되지 않았을 때의 fallback
-        displayId = uniqueId.length > 8 ? uniqueId.slice(0, 8) : uniqueId;
-    }
-
-    return {
-        id: uniqueId,
-        displayId,
-    };
-}
-
-/**
- * 서버 사이드에서 현재 세션의 유저 정보 확인 (단순 로그인 및 네이버 로그인 통합)
+ * 서버 사이드에서 현재 세션의 유저 정보 확인
  */
 export async function getServerUser(): Promise<UserSession | null> {
     const cookieStore = await cookies();
 
-    // 1. 단순 로그인(reCAPTCHA 간편 로그인) 세션 확인
-    const simpleUid = cookieStore.get(SIMPLE_SESSION_COOKIE)?.value;
-    const simpleDisplayId = cookieStore.get(SIMPLE_DISPLAY_ID_COOKIE)?.value;
+    const uid = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get('factrepo_simple_uid')?.value;
+    const displayId = cookieStore.get(DISPLAY_ID_COOKIE)?.value || cookieStore.get('factrepo_simple_display_id')?.value;
 
-    if (simpleUid && simpleDisplayId) {
+    if (uid && displayId) {
         return {
-            id: simpleUid,
-            displayId: simpleDisplayId,
-            maskedId: simpleDisplayId,
-            provider: 'recaptcha',
-        };
-    }
-
-    // 2. 네이버 로그인 세션 확인
-    const naverUserId = cookieStore.get(NAVER_SESSION_COOKIE)?.value;
-    const naverDisplayId = cookieStore.get(NAVER_DISPLAY_ID_COOKIE)?.value || naverUserId || '';
-
-    if (naverUserId) {
-        return {
-            id: naverUserId,
-            displayId: naverDisplayId,
-            maskedId: naverDisplayId,
-            provider: 'naver',
+            id: uid,
+            displayId: displayId,
+            maskedId: displayId,
         };
     }
 
     return null;
-}
-
-/**
- * 기존 코드 호환을 위한 getServerNaverUser (내부적으로 getServerUser 호출)
- */
-export async function getServerNaverUser(): Promise<UserSession | null> {
-    return getServerUser();
 }
 

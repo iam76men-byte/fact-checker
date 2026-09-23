@@ -113,7 +113,19 @@ export default function FactTabs({
     onClearSelectedFact,
 }: FactTabsProps) {
     const { user } = useAuth();
-    const isAdmin = user?.displayId === 'iam76men';
+    const [isAdminVerified, setIsAdminVerified] = useState(false);
+
+    React.useEffect(() => {
+        try {
+            if (sessionStorage.getItem('factrepo_admin_verified') === 'true') {
+                setIsAdminVerified(true);
+            }
+        } catch {}
+    }, []);
+
+    const [editTarget, setEditTarget] = useState<FactItem | null>(null);
+    const [editPassword, setEditPassword] = useState('');
+    const [editPasswordError, setEditPasswordError] = useState('');
 
     const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
     const [adminPassword, setAdminPassword] = useState('');
@@ -154,10 +166,47 @@ export default function FactTabs({
         );
     };
 
+    // [✏️ 변경] 클릭 시 관리자 인증 체크
+    const handleClickEdit = (fact: FactItem) => {
+        if (isAdminVerified) {
+            onOpenEditModal?.(fact);
+        } else {
+            setEditTarget(fact);
+            setEditPassword('');
+            setEditPasswordError('');
+        }
+    };
+
+    const handleConfirmEditAuth = (e: React.FormEvent) => {
+        e.preventDefault();
+        const expectedPwd = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+        if (!editPassword.trim()) {
+            setEditPasswordError('관리자 암호를 입력해주세요.');
+            return;
+        }
+
+        if (expectedPwd && editPassword.trim() === expectedPwd) {
+            try {
+                sessionStorage.setItem('factrepo_admin_verified', 'true');
+            } catch {}
+            setIsAdminVerified(true);
+            const target = editTarget;
+            setEditTarget(null);
+            setEditPassword('');
+            setEditPasswordError('');
+            if (target && onOpenEditModal) {
+                onOpenEditModal(target);
+            }
+        } else {
+            setEditPasswordError('관리자 암호가 일치하지 않습니다.');
+        }
+    };
+
     const handleOpenDeleteModal = (id: number, title: string) => {
         setDeleteTarget({ id, title });
         setAdminPassword('');
     };
+
 
     const handleConfirmDelete = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,6 +231,12 @@ export default function FactTabs({
             }
 
             alert('팩트 리포트가 성공적으로 삭제되었습니다.');
+
+            try {
+                sessionStorage.setItem('factrepo_admin_verified', 'true');
+            } catch {}
+            setIsAdminVerified(true);
+
 
             if (onDeleteFact) {
                 onDeleteFact(deleteTarget.id);
@@ -731,18 +786,19 @@ export default function FactTabs({
                                             <span>반론</span>
                                         </Link>
 
-                                        {/* 관리자(iam76men) 리포트 수정 버튼 */}
-                                        {isAdmin && onOpenEditModal && (
+                                        {/* 관리자 리포트 수정 버튼 (암호 인증 필요) */}
+                                        {onOpenEditModal && (
                                             <button
                                                 type="button"
-                                                onClick={() => onOpenEditModal(fact)}
+                                                onClick={() => handleClickEdit(fact)}
                                                 className="bg-blue-950/70 hover:bg-blue-900/90 text-blue-300 border border-blue-800/80 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition font-semibold cursor-pointer active:scale-95"
-                                                title="관리자 전용 팩트 리포트 정정(수정)"
+                                                title={isAdminVerified ? '관리자 전용 팩트 리포트 정정(수정)' : '관리자 전용 팩트 리포트 정정(수정) - 관리자 암호 필요'}
                                             >
                                                 <span>✏️</span>
                                                 <span>변경</span>
                                             </button>
                                         )}
+
 
                                         <button
                                             type="button"
@@ -1063,6 +1119,70 @@ export default function FactTabs({
                     </div>
                 </div>
             )}
+
+            {/* 리포트 수정 관리자 암호 인증 모달 */}
+
+            {editTarget && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+                    <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
+                            <span>🔒</span> 관리자 인증 필요 (리포트 수정)
+                        </h3>
+                        <p className="text-neutral-400 text-xs mb-3 break-keep">
+                            팩트 리포트 내용을 정정/수정하려면 관리자 암호를 입력해주세요:<br />
+                            <span className="text-blue-300 font-semibold mt-1 block truncate">
+                                "{editTarget.title}"
+                            </span>
+                        </p>
+
+                        <form onSubmit={handleConfirmEditAuth} className="space-y-4">
+                            <div>
+                                <label className="block text-neutral-300 text-xs font-medium mb-1">
+                                    관리자 암호 입력
+                                </label>
+                                <input
+                                    type="password"
+                                    autoFocus
+                                    required
+                                    placeholder="••••••••••••"
+                                    value={editPassword}
+                                    onChange={(e) => {
+                                        setEditPassword(e.target.value);
+                                        setEditPasswordError('');
+                                    }}
+                                    className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                                />
+                                {editPasswordError && (
+                                    <p className="text-xs text-red-400 mt-1.5 font-medium">
+                                        ⚠️ {editPasswordError}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditTarget(null);
+                                        setEditPassword('');
+                                        setEditPasswordError('');
+                                    }}
+                                    className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded text-xs transition cursor-pointer"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition cursor-pointer"
+                                >
+                                    인증 및 수정 열기
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
+
 }

@@ -213,8 +213,9 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
     };
 
     const effectiveCitizenId = user
-        ? (user.provider === 'naver' ? `네이버(${user.maskedId})` : (user.displayId || user.maskedId))
+        ? (user.displayId || user.maskedId)
         : (mounted ? citizenId : '시민 확인 중...');
+
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">

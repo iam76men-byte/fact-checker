@@ -202,8 +202,9 @@ function RebuttalsContent() {
     };
 
     const effectiveCitizenId = user
-        ? (user.provider === 'naver' ? `네이버(${user.maskedId})` : (user.displayId || user.maskedId))
+        ? (user.displayId || user.maskedId)
         : (mounted ? citizenId : '시민 확인 중...');
+
 
     return (
         <main className="min-h-screen bg-neutral-900 text-neutral-100 p-4 md:p-8 font-sans">

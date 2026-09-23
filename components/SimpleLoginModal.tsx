@@ -90,11 +90,6 @@ export default function SimpleLoginModal({
         }
     };
 
-    const handleNaverOAuth = () => {
-        const dest = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
-        window.location.href = `/api/auth/naver/login?returnTo=${encodeURIComponent(dest)}`;
-    };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
             <div className="relative w-full max-w-sm bg-neutral-900 border border-neutral-700/90 rounded-2xl p-6 shadow-2xl space-y-4">
@@ -195,25 +190,13 @@ export default function SimpleLoginModal({
                     </button>
                 </form>
 
-                {/* 하단 보조 옵션 */}
-                <div className="pt-2 border-t border-neutral-800/80 space-y-2">
-                    <button
-                        type="button"
-                        onClick={handleNaverOAuth}
-                        disabled={loading}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-neutral-800/60 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 text-xs rounded-xl border border-neutral-800 transition cursor-pointer"
-                    >
-                        <span className="w-3.5 h-3.5 rounded-xs bg-[#03c75a] text-white text-[9px] font-black flex items-center justify-center shrink-0">
-                            N
-                        </span>
-                        <span>네이버 아이디로 로그인하기 (옵션)</span>
-                    </button>
-
+                {/* 하단 취소 버튼 */}
+                <div className="pt-2 border-t border-neutral-800/80">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={loading}
-                        className="w-full py-2 px-3 text-neutral-500 hover:text-neutral-300 text-xs text-center transition cursor-pointer"
+                        className="w-full py-2 px-3 text-neutral-400 hover:text-white text-xs text-center transition cursor-pointer"
                     >
                         취소하고 둘러보기 (로그인 없이 열람)
                     </button>
@@ -222,3 +205,4 @@ export default function SimpleLoginModal({
         </div>
     );
 }
+

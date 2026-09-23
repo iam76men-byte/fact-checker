@@ -69,19 +69,14 @@ export default function Header({
                         <div className="flex items-center gap-1.5">
                             <div
                                 className="flex items-center gap-1.5 bg-neutral-800/90 border border-neutral-700 px-2.5 py-1 rounded-lg text-xs shadow-sm"
-                                title={user.provider === 'naver' ? `네이버 로그인: ${user.displayId || user.maskedId}` : `간편 시민 로그인: ${user.displayId || user.maskedId}`}
+                                title={`시민 닉네임: ${user.displayId || user.maskedId}`}
                             >
-                                {user.provider === 'naver' ? (
-                                    <span className="w-4 h-4 rounded bg-[#03c75a] text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                                        N
-                                    </span>
-                                ) : (
-                                    <span className="text-cyan-400 text-xs shrink-0">
-                                        🛡️
-                                    </span>
-                                )}
+                                <span className="text-cyan-400 text-xs shrink-0">
+                                    🛡️
+                                </span>
                                 <span className="text-neutral-200 font-medium">{user.displayId || user.maskedId}</span>
                             </div>
+
                             <button
                                 type="button"
                                 onClick={() => logout()}
