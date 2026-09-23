@@ -1,5 +1,7 @@
 'use client';
 
+import type { FactItem } from './FactTabs';
+
 export interface RequestItem {
     id: number;
     title: string;
@@ -12,22 +14,26 @@ export interface RequestItem {
 
 interface RequestListProps {
     requests: RequestItem[];
+    facts?: FactItem[];
     loading: boolean;
     citizenId?: string; // 소문자 string으로 수정
     userVotes?: Record<number, 'up' | 'down'>; // ? 추가 (필수 해제)
     onVote?: (id: number, type: 'up' | 'down') => void; // ? 추가 (필수 해제)
     onOpenModal: () => void;
     onVoteUpdate?: (reqId: any, up: any, down: any) => void;
+    onSelectFact?: (fact: FactItem) => void;
 }
 
 export default function RequestList({
     requests,
+    facts = [],
     loading,
     citizenId,
     userVotes = {}, // 기본 빈 객체 할당
     onVote = () => { }, // 기본 빈 함수 할당
     onOpenModal,
     onVoteUpdate,
+    onSelectFact,
 }: RequestListProps) {
 
     const sortedRequests = [...requests].sort((a, b) => {
@@ -69,6 +75,13 @@ export default function RequestList({
                         const down = req.downvotes ?? 0;
                         const netScore = up - down;
                         const myVote = userVotes[req.id];
+                        const matchedFact = facts.find(
+                            (f) =>
+                                f.request_id === req.id ||
+                                f.title.trim() === req.title.trim() ||
+                                f.title.includes(req.title) ||
+                                req.title.includes(f.title)
+                        );
 
                         return (
                             <div
@@ -132,6 +145,18 @@ export default function RequestList({
                                                 >
                                                     기사 원문 ↗
                                                 </a>
+                                            )}
+
+                                            {matchedFact && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSelectFact?.(matchedFact)}
+                                                    className="inline-flex items-center gap-1.5 bg-red-950/80 hover:bg-red-900 text-red-300 hover:text-white px-2.5 py-0.5 rounded text-[11px] font-semibold border border-red-800/80 transition shrink-0 cursor-pointer shadow-sm"
+                                                    title="이 의뢰 안건에 대해 검증 완료된 팩트 리포트 열람"
+                                                >
+                                                    <span>✅</span>
+                                                    <span>검증 완료 보고서 보기 →</span>
+                                                </button>
                                             )}
                                         </div>
                                     </div>

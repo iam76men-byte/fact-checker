@@ -39,7 +39,7 @@ export default function AdminFactModal({
     // 모달이 열리거나 editingFact가 변경될 때 상태 초기화
     useEffect(() => {
         if (editingFact) {
-            setSelectedReqId('');
+            setSelectedReqId(editingFact.request_id ? editingFact.request_id : '');
             setTitle(editingFact.title || '');
             setDistortion(editingFact.distortion || '');
             setFactSummary(editingFact.fact_summary || '');
@@ -97,22 +97,24 @@ export default function AdminFactModal({
         }
     };
 
-    // 의뢰글을 선택하면 왜곡 쟁점을 AI가 즉시 자동 생성
+    // 의뢰글을 선택하면 왜곡 쟁점을 AI가 즉시 자동 생성 (편집 모드 시에는 연결 ID만 변경)
     const handleSelectRequest = (reqIdStr: string) => {
         if (!reqIdStr) {
             setSelectedReqId('');
-            setTitle('');
-            setSourceUrl('');
-            setDistortion('');
-            setFactSummary('');
-            setPrimarySource('');
-            setHashtags([]);
+            if (!editingFact) {
+                setTitle('');
+                setSourceUrl('');
+                setDistortion('');
+                setFactSummary('');
+                setPrimarySource('');
+                setHashtags([]);
+            }
             return;
         }
         const id = Number(reqIdStr);
         setSelectedReqId(id);
         const target = requests.find((r) => r.id === id);
-        if (target) {
+        if (target && !editingFact) {
             setTitle(target.title);
             const targetUrl = target.source_url || '';
             setSourceUrl(targetUrl);
@@ -218,6 +220,8 @@ export default function AdminFactModal({
         }
 
         const tagsText = hashtags.length > 0 ? hashtags.join(' ') : '';
+        const linkedReq = requests.find((r) => r.id === Number(selectedReqId)) || null;
+        const netScore = linkedReq ? (linkedReq.upvotes || 0) - (linkedReq.downvotes || 0) : 0;
 
         const printHtml = `
       <!DOCTYPE html>
@@ -267,34 +271,70 @@ export default function AdminFactModal({
             letter-spacing: -0.5px;
           }
           .meta {
-            font-size: 9pt;
+            font-size: 8.5pt;
             color: #64748b;
             text-align: right;
             line-height: 1.5;
           }
           .report-title-box {
-            background: #f1f5f9;
-            border-left: 6px solid #dc2626;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 5px solid #dc2626;
             padding: 16px 20px;
-            border-radius: 4px;
-            margin-bottom: 24px;
+            border-radius: 0 6px 6px 0;
+            margin-bottom: 20px;
           }
           .report-title {
-            font-size: 14pt;
-            font-weight: 800;
+            font-size: 13pt;
+            font-weight: 700;
             color: #0f172a;
-            margin: 0;
+            line-height: 1.5;
           }
-          .section {
-            margin-bottom: 22px;
+
+          /* 시민 검증 의뢰 연계 배너 */
+          .request-banner {
+            background: #fff8f8;
+            border: 1.5px solid #fecaca;
+            border-left: 5px solid #ef4444;
+            border-radius: 0 6px 6px 0;
+            padding: 14px 18px;
+            margin-bottom: 24px;
           }
-          .section-title {
-            font-size: 11pt;
+          .request-badge {
+            font-size: 8.5pt;
             font-weight: 800;
-            margin-bottom: 8px;
+            color: #dc2626;
+            margin-bottom: 4px;
             display: flex;
             align-items: center;
             gap: 6px;
+          }
+          .request-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 6px;
+            line-height: 1.5;
+          }
+          .request-meta {
+            font-size: 8.5pt;
+            color: #64748b;
+            line-height: 1.5;
+          }
+
+          .section {
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .section-title {
+            font-size: 11pt;
+            font-weight: 700;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1.5px solid #e2e8f0;
+            display: flex;
+            align-items: center;
           }
           .box {
             background: #ffffff;
@@ -303,8 +343,85 @@ export default function AdminFactModal({
             padding: 16px;
             white-space: pre-wrap;
             font-size: 9.5pt;
-            line-height: 1.7;
+            line-height: 1.75;
+            color: #334155;
           }
+
+          /* 마크다운 전용 인쇄 및 화면 렌더링 스타일 */
+          .box-markdown {
+            white-space: normal !important;
+            word-break: break-word !important;
+            font-size: 9.5pt;
+            line-height: 1.75;
+            color: #1e293b;
+          }
+          .box-markdown table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 14px 0 !important;
+            font-size: 9pt !important;
+            border: 1.5px solid #cbd5e1 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .box-markdown th {
+            background: #f1f5f9 !important;
+            font-weight: 700 !important;
+            text-align: left !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+            color: #0f172a !important;
+          }
+          .box-markdown td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+            background: #ffffff !important;
+            color: #334155 !important;
+            vertical-align: top !important;
+          }
+          .box-markdown tr:nth-child(even) td {
+            background: #f8fafc !important;
+          }
+          .box-markdown h1, .box-markdown h2, .box-markdown h3, .box-markdown h4 {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+            margin-top: 14px !important;
+            margin-bottom: 6px !important;
+          }
+          .box-markdown h3 {
+            font-size: 11pt !important;
+            border-bottom: 1.5px solid #e2e8f0 !important;
+            padding-bottom: 4px !important;
+            color: #1e3a8a !important;
+          }
+          .box-markdown ul, .box-markdown ol {
+            margin: 6px 0 10px 0 !important;
+            padding-left: 20px !important;
+          }
+          .box-markdown li {
+            margin-bottom: 4px !important;
+            color: #334155 !important;
+          }
+          .box-markdown strong {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+          }
+          .box-markdown blockquote {
+            border-left: 3.5px solid #2563eb !important;
+            background: #eff6ff !important;
+            padding: 8px 14px !important;
+            margin: 10px 0 !important;
+            color: #1e40af !important;
+            border-radius: 0 4px 4px 0 !important;
+          }
+          .box-markdown code {
+            background: #f1f5f9 !important;
+            padding: 2px 5px !important;
+            border-radius: 4px !important;
+            font-size: 8.5pt !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+
           .footer {
             margin-top: 36px;
             padding-top: 14px;
@@ -315,8 +432,9 @@ export default function AdminFactModal({
             justify-content: space-between;
           }
           @media print {
-            body { background: white; }
-            .paper { box-shadow: none; margin: 0; padding: 0; max-width: 100%; }
+            body { background: white !important; }
+            .paper { box-shadow: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+            .section { page-break-inside: avoid !important; break-inside: avoid !important; margin-bottom: 20px !important; }
           }
         </style>
       </head>
@@ -339,6 +457,22 @@ export default function AdminFactModal({
             ${tagsText ? `<div style="font-size: 8.5pt; color: #64748b; margin-top: 6px;">키워드: ${tagsText}</div>` : ''}
           </div>
 
+          ${linkedReq ? `
+          <div class="request-banner">
+            <div class="request-badge">
+              <span>📢</span> 시민 팩트체크 검증 의뢰 안건 연계 (접수번호: REQ-${linkedReq.id}호)
+            </div>
+            <div class="request-title">
+              “${linkedReq.title}”
+            </div>
+            <div class="request-meta">
+              <span>시민 추천 지지도: <strong>${netScore > 0 ? `+${netScore}` : netScore}표</strong> (찬성 ${linkedReq.upvotes || 0} / 반대 ${linkedReq.downvotes || 0})</span> | 
+              <span>접수일시: ${new Date(linkedReq.created_at).toLocaleDateString('ko-KR')}</span>
+              ${linkedReq.source_url ? ` | <span>출처: ${linkedReq.source_url}</span>` : ''}
+            </div>
+          </div>
+          ` : ''}
+
           <div class="section">
             <div class="section-title" style="color: #b91c1c;">1. 제기된 의혹 및 왜곡 프레임</div>
             <div class="box" style="border-left: 4px solid #ef4444;">${distortion}</div>
@@ -351,7 +485,7 @@ export default function AdminFactModal({
 
           <div class="section">
             <div class="section-title" style="color: #1d4ed8;">3. AI 팩트 체크</div>
-            <div class="box" style="border-left: 4px solid #3b82f6;">${markdownToHtml(primarySource)}${sourceUrl ? '<br><br>참조 근거 원문: ' + sourceUrl : ''}</div>
+            <div class="box box-markdown" style="border-left: 4px solid #3b82f6;">${markdownToHtml(primarySource)}${sourceUrl ? '<div style="margin-top: 14px; font-size: 8.5pt; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 8px;">참조 근거 원문: <a href="' + sourceUrl + '" style="color: #2563eb;">' + sourceUrl + '</a></div>' : ''}</div>
           </div>
 
           <div class="footer">
@@ -421,6 +555,7 @@ export default function AdminFactModal({
             .filter(Boolean);
 
         const factPayload: any = {
+            request_id: selectedReqId ? Number(selectedReqId) : null,
             title: title.trim(),
             distortion: distortion.trim(),
             fact_summary: factSummary.trim(),
@@ -553,38 +688,36 @@ export default function AdminFactModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-                    {!editingFact && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block font-medium text-neutral-300 mb-1">
-                                    시민 검증 의뢰 선택 (내용 자동 로드)
-                                </label>
-                                <select
-                                    value={selectedReqId}
-                                    onChange={(e) => handleSelectRequest(e.target.value)}
-                                    className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:outline-none focus:border-red-500"
-                                >
-                                    <option value="">-- 직접 입력 또는 의뢰 선택 --</option>
-                                    {requests.map((r) => (
-                                        <option key={r.id} value={r.id}>
-                                            [{r.upvotes - r.downvotes > 0 ? `+${r.upvotes - r.downvotes}` : r.upvotes - r.downvotes}] {r.title}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block font-medium text-neutral-300 mb-1">근거 링크 URL (선택)</label>
-                                <input
-                                    type="url"
-                                    placeholder="https://..."
-                                    value={sourceUrl}
-                                    onChange={(e) => setSourceUrl(e.target.value)}
-                                    className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:outline-none focus:border-red-500"
-                                />
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block font-medium text-neutral-300 mb-1">
+                                {editingFact ? '연결된 시민 검증 의뢰 (선택/변경)' : '시민 검증 의뢰 선택 (내용 자동 로드)'}
+                            </label>
+                            <select
+                                value={selectedReqId}
+                                onChange={(e) => handleSelectRequest(e.target.value)}
+                                className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:outline-none focus:border-red-500"
+                            >
+                                <option value="">-- 직접 입력 또는 의뢰 선택 해제 --</option>
+                                {requests.map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                        [{r.upvotes - r.downvotes > 0 ? `+${r.upvotes - r.downvotes}` : r.upvotes - r.downvotes}] {r.title}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
-                    )}
+
+                        <div>
+                            <label className="block font-medium text-neutral-300 mb-1">근거 링크 URL (선택)</label>
+                            <input
+                                type="url"
+                                placeholder="https://..."
+                                value={sourceUrl}
+                                onChange={(e) => setSourceUrl(e.target.value)}
+                                className="w-full bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:outline-none focus:border-red-500"
+                            />
+                        </div>
+                    </div>
 
                     <div>
                         <label className="block font-medium text-neutral-300 mb-1">리포트 제목 *</label>

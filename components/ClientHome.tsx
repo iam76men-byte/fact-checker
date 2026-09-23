@@ -31,6 +31,7 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [editingFact, setEditingFact] = useState<FactItem | null>(null);
+    const [selectedFactIdToOpen, setSelectedFactIdToOpen] = useState<number | null>(null);
 
     const handleOpenAdminModal = () => {
         setEditingFact(null);
@@ -229,7 +230,10 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             {tab === 'facts' && (
                 <FactTabs
                     facts={facts}
+                    requests={requests}
                     loading={false}
+                    selectedFactIdToOpen={selectedFactIdToOpen}
+                    onClearSelectedFact={() => setSelectedFactIdToOpen(null)}
                     onOpenAdminModal={handleOpenAdminModal}
                     onOpenEditModal={handleOpenEditModal}
                     onDeleteFact={(deletedId) => {
@@ -242,11 +246,16 @@ export default function ClientHome({ initialFacts, initialRequests }: ClientHome
             {tab === 'requests' && (
                 <RequestList
                     requests={requests}
+                    facts={facts}
                     loading={false}
                     citizenId={effectiveCitizenId}
                     userVotes={userVotes}
                     onVote={handleVote}
                     onOpenModal={handleOpenRequestModal}
+                    onSelectFact={(fact) => {
+                        setTab('facts');
+                        setSelectedFactIdToOpen(fact.id);
+                    }}
                     onVoteUpdate={(reqId: any, up: any, down: any) => {
                         setRequests((prev) =>
                             prev.map((r) =>

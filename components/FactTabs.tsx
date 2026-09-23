@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import MarkdownViewer, { markdownToHtml } from './MarkdownViewer';
 
+import { RequestItem } from './RequestList';
+
 export interface FactItem {
     id: number;
+    request_id?: number | null;
     title: string;
     distortion: string;
     fact_summary: string;
@@ -19,10 +22,13 @@ export interface FactItem {
 
 interface FactTabsProps {
     facts: FactItem[];
+    requests?: RequestItem[];
     loading: boolean;
     onOpenAdminModal: () => void;
     onOpenEditModal?: (fact: FactItem) => void;
     onDeleteFact?: (id: number) => void;
+    selectedFactIdToOpen?: number | null;
+    onClearSelectedFact?: () => void;
 }
 
 const cleanBracketHeader = (text: string) => {
@@ -96,7 +102,16 @@ const getLocalDateString = (isoString?: string): string => {
     }
 };
 
-export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditModal, onDeleteFact }: FactTabsProps) {
+export default function FactTabs({
+    facts,
+    requests = [],
+    loading,
+    onOpenAdminModal,
+    onOpenEditModal,
+    onDeleteFact,
+    selectedFactIdToOpen,
+    onClearSelectedFact,
+}: FactTabsProps) {
     const { user } = useAuth();
     const isAdmin = user?.displayId === 'iam76men';
 
@@ -110,6 +125,34 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
     // 검색어 및 달력 선택 날짜
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState<string>(''); // YYYY-MM-DD
+
+    // 특정 팩트 ID가 외부에서 주어지면 자동으로 모달 오픈
+    React.useEffect(() => {
+        if (selectedFactIdToOpen && facts.length > 0) {
+            const idx = facts.findIndex((f) => f.id === selectedFactIdToOpen);
+            if (idx !== -1) {
+                setViewingFact({ fact: facts[idx], index: idx });
+                onClearSelectedFact?.();
+            }
+        }
+    }, [selectedFactIdToOpen, facts, onClearSelectedFact]);
+
+    // 팩트와 연결된 시민 의뢰 찾기 헬퍼
+    const findLinkedRequest = (fact: FactItem): RequestItem | null => {
+        if (!requests || requests.length === 0) return null;
+        if (fact.request_id) {
+            const found = requests.find((r) => r.id === fact.request_id);
+            if (found) return found;
+        }
+        return (
+            requests.find(
+                (r) =>
+                    r.title.trim() === fact.title.trim() ||
+                    fact.title.includes(r.title) ||
+                    r.title.includes(fact.title)
+            ) || null
+        );
+    };
 
     const handleOpenDeleteModal = (id: number, title: string) => {
         setDeleteTarget({ id, title });
@@ -162,6 +205,9 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             alert('팝업 차단을 해제해주세요.');
             return;
         }
+
+        const linkedReq = findLinkedRequest(fact);
+        const netScore = linkedReq ? (linkedReq.upvotes || 0) - (linkedReq.downvotes || 0) : 0;
 
         const reportHtml = `
       <!DOCTYPE html>
@@ -251,13 +297,45 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             padding: 16px 20px;
             font-size: 13pt;
             font-weight: 700;
-            margin-bottom: 26px;
+            margin-bottom: 20px;
             border-radius: 0 6px 6px 0;
             line-height: 1.55;
             color: #0f172a;
           }
+
+          /* 시민 검증 의뢰 연계 배너 */
+          .request-banner {
+            background: #fff8f8;
+            border: 1.5px solid #fecaca;
+            border-left: 5px solid #ef4444;
+            border-radius: 0 6px 6px 0;
+            padding: 14px 18px;
+            margin-bottom: 24px;
+          }
+          .request-badge {
+            font-size: 8.5pt;
+            font-weight: 800;
+            color: #dc2626;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .request-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 6px;
+            line-height: 1.5;
+          }
+          .request-meta {
+            font-size: 8.5pt;
+            color: #64748b;
+            line-height: 1.5;
+          }
+
           .section {
-            margin-bottom: 26px;
+            margin-bottom: 24px;
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -285,6 +363,82 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             word-break: keep-all;
             letter-spacing: -0.2px;
           }
+
+          /* 마크다운 전용 인쇄 및 화면 렌더링 스타일 */
+          .box-markdown {
+            white-space: normal !important;
+            word-break: break-word !important;
+            font-size: 9.5pt;
+            line-height: 1.75;
+            color: #1e293b;
+          }
+          .box-markdown table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 14px 0 !important;
+            font-size: 9pt !important;
+            border: 1.5px solid #cbd5e1 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .box-markdown th {
+            background: #f1f5f9 !important;
+            font-weight: 700 !important;
+            text-align: left !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+            color: #0f172a !important;
+          }
+          .box-markdown td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+            background: #ffffff !important;
+            color: #334155 !important;
+            vertical-align: top !important;
+          }
+          .box-markdown tr:nth-child(even) td {
+            background: #f8fafc !important;
+          }
+          .box-markdown h1, .box-markdown h2, .box-markdown h3, .box-markdown h4 {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+            margin-top: 14px !important;
+            margin-bottom: 6px !important;
+          }
+          .box-markdown h3 {
+            font-size: 11pt !important;
+            border-bottom: 1.5px solid #e2e8f0 !important;
+            padding-bottom: 4px !important;
+            color: #1e3a8a !important;
+          }
+          .box-markdown ul, .box-markdown ol {
+            margin: 6px 0 10px 0 !important;
+            padding-left: 20px !important;
+          }
+          .box-markdown li {
+            margin-bottom: 4px !important;
+            color: #334155 !important;
+          }
+          .box-markdown strong {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+          }
+          .box-markdown blockquote {
+            border-left: 3.5px solid #2563eb !important;
+            background: #eff6ff !important;
+            padding: 8px 14px !important;
+            margin: 10px 0 !important;
+            color: #1e40af !important;
+            border-radius: 0 4px 4px 0 !important;
+          }
+          .box-markdown code {
+            background: #f1f5f9 !important;
+            padding: 2px 5px !important;
+            border-radius: 4px !important;
+            font-size: 8.5pt !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+
           .footer {
             margin-top: 40px;
             padding-top: 14px;
@@ -312,7 +466,7 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             .section {
               page-break-inside: avoid;
               break-inside: avoid;
-              margin-bottom: 22px !important;
+              margin-bottom: 20px !important;
             }
             .box {
               padding: 14px 18px !important;
@@ -347,6 +501,22 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
             검증 안건: ${fact.title}
           </div>
 
+          ${linkedReq ? `
+          <div class="request-banner">
+            <div class="request-badge">
+              <span>📢</span> 시민 팩트체크 검증 의뢰 안건 연계 (접수번호: REQ-${linkedReq.id}호)
+            </div>
+            <div class="request-title">
+              “${linkedReq.title}”
+            </div>
+            <div class="request-meta">
+              <span>시민 추천 지지도: <strong>${netScore > 0 ? `+${netScore}` : netScore}표</strong> (찬성 ${linkedReq.upvotes || 0} / 반대 ${linkedReq.downvotes || 0})</span> | 
+              <span>접수일시: ${new Date(linkedReq.created_at).toLocaleDateString('ko-KR')}</span>
+              ${linkedReq.source_url ? ` | <span>출처: ${linkedReq.source_url}</span>` : ''}
+            </div>
+          </div>
+          ` : ''}
+
           <div class="section">
             <div class="section-title distortion-title">1. 배경 및 쟁점·정황</div>
             <div class="box">${cleanBracketHeader(fact.distortion) || '기록된 내용이 없습니다.'}</div>
@@ -359,12 +529,12 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
 
           <div class="section">
             <div class="section-title source-title">3. AI 팩트 체크</div>
-            <div class="box">${markdownToHtml(cleanBracketHeader(fact.primary_source) || fact.primary_source) || '기록된 내용이 없습니다.'}${fact.source_url ? '<br><br>참조 원문 링크: <a href="' + fact.source_url + '">' + fact.source_url + '</a>' : ''}</div>
+            <div class="box box-markdown">${markdownToHtml(cleanBracketHeader(fact.primary_source) || fact.primary_source) || '기록된 내용이 없습니다.'}${fact.source_url ? '<div style="margin-top: 14px; font-size: 8.5pt; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 8px;">참조 원문 링크: <a href="' + fact.source_url + '" style="color: #2563eb;">' + fact.source_url + '</a></div>' : ''}</div>
           </div>
 
           <div class="footer">
             <span>FactRepo Public Verification Unit</span>
-            <span>본 문서는 공공데이터와 공적 기록물에 기반하여 작성되었습니다.</span>
+            <span>본 문서는 시민 제보 및 공공데이터·공적 사료에 기반하여 발행되었습니다.</span>
           </div>
         </div>
       </body>
@@ -503,20 +673,33 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
                 </div>
             ) : (
                 <div className="space-y-3.5">
-                    {filteredFacts.map((fact, index) => (
+                    {filteredFacts.map((fact, index) => {
+                        const cardLinkedReq = findLinkedRequest(fact);
+                        const cardNetScore = cardLinkedReq ? (cardLinkedReq.upvotes || 0) - (cardLinkedReq.downvotes || 0) : 0;
+                        return (
                         <div
                             key={fact.id}
                             className="bg-neutral-800 border border-neutral-700 hover:border-neutral-600 transition rounded-xl p-4 md:p-5 space-y-3 shadow-md"
                         >
                             {/* 상단 헤더: TOP 배지, 제목, 보고서 열람, 삭제, 발행일 */}
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-neutral-700/70 pb-3 gap-2.5">
-                                <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                                    <span className="bg-red-950 text-red-400 text-xs px-2.5 py-0.5 rounded font-bold border border-red-800 shrink-0 mt-0.5">
-                                        TOP {index + 1}
-                                    </span>
-                                    <h4 className="font-bold text-neutral-100 text-sm md:text-base leading-snug break-keep sm:break-normal">
-                                        {fact.title}
-                                    </h4>
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                    {cardLinkedReq && (
+                                        <div className="inline-flex items-center gap-1.5 text-[11px] text-red-300 bg-red-950/60 border border-red-800/70 px-2 py-0.5 rounded font-medium">
+                                            <span>📢</span>
+                                            <span>시민 의뢰 REQ-{cardLinkedReq.id}호 연계</span>
+                                            <span className="text-neutral-500">•</span>
+                                            <span>추천 +{cardNetScore}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="bg-red-950 text-red-400 text-xs px-2.5 py-0.5 rounded font-bold border border-red-800 shrink-0 mt-0.5">
+                                            TOP {index + 1}
+                                        </span>
+                                        <h4 className="font-bold text-neutral-100 text-sm md:text-base leading-snug break-keep sm:break-normal">
+                                            {fact.title}
+                                        </h4>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 border-t border-neutral-700/40 sm:border-0 pt-2 sm:pt-0">
@@ -620,12 +803,16 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
                                 )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
             {/* 인앱 반응형 팩트 리포트 텍스트 뷰어 모달 (모바일/PC 공용) */}
-            {viewingFact && (
+            {viewingFact && (() => {
+                const modalLinkedReq = findLinkedRequest(viewingFact.fact);
+                const modalNetScore = modalLinkedReq ? (modalLinkedReq.upvotes || 0) - (modalLinkedReq.downvotes || 0) : 0;
+                return (
                 <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 z-50 overflow-y-auto">
                     <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
                         {/* 모달 상단 헤더 */}
@@ -662,6 +849,46 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
 
                         {/* 모달 본문 (모바일에서 텍스트가 시원하게 읽히는 영역) */}
                         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto text-xs sm:text-sm">
+                            {/* 시민 검증 의뢰 연계 배너 (어떤 요청에 의해 검증되었는지 표시) */}
+                            {modalLinkedReq && (
+                                <div className="bg-gradient-to-r from-red-950/70 via-neutral-900 to-neutral-900 border border-red-800/80 rounded-xl p-3.5 sm:p-4 shadow-sm space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1.5 font-bold text-red-400 text-xs sm:text-[13px]">
+                                            <span>📢</span> 시민 팩트체크 검증 의뢰 안건 (제REQ-{modalLinkedReq.id}호)
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-red-300 bg-red-950/80 border border-red-800 px-2 py-0.5 rounded">
+                                            시민 지지도: {modalNetScore > 0 ? `+${modalNetScore}` : modalNetScore}표
+                                        </span>
+                                    </div>
+                                    <p className="text-white font-medium text-xs sm:text-sm leading-snug break-keep">
+                                        “{modalLinkedReq.title}”
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-400 pt-1.5 border-t border-neutral-800/80">
+                                        <span>접수일: {new Date(modalLinkedReq.created_at).toLocaleDateString('ko-KR')}</span>
+                                        {modalLinkedReq.source_url && (
+                                            <a
+                                                href={modalLinkedReq.source_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-neutral-300 hover:text-white underline"
+                                            >
+                                                의뢰 원문 기사 ↗
+                                            </a>
+                                        )}
+                                        {modalLinkedReq.image_url && (
+                                            <a
+                                                href={modalLinkedReq.image_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-400 hover:text-blue-300 underline"
+                                            >
+                                                📸 캡처 박제본 확인
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* 리포트 제목 */}
                             <div className="bg-neutral-800/80 border border-neutral-700 border-l-4 border-l-red-600 rounded-xl p-3.5 sm:p-4 shadow-sm">
                                 <div className="text-[11px] font-bold text-red-400 uppercase tracking-wider mb-1">
@@ -779,7 +1006,8 @@ export default function FactTabs({ facts, loading, onOpenAdminModal, onOpenEditM
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* 관리자 암호 인증 모달 */}
             {deleteTarget && (
