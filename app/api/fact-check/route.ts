@@ -110,8 +110,63 @@ function cleanKoreanNoun(word: string): string | null {
     return word;
 }
 
-// 텍스트 기반 5대 핵심 해시태그 스마트 추출기 (형태소/도메인 지능형 알고리즘)
-function extractSmartHashtags(title: string, distortion: string, primarySource: string): string[] {
+// 한국어 인명(Person) 추출 헬퍼 (알려진 주요 인물, 직책/호칭 결합형, 한국 성명 패턴)
+function extractPersonNames(text: string): string[] {
+    const knownPersons = [
+        '김현지', '윤석열', '이재명', '한동훈', '오세훈', '박원순', '김건희', '최재영',
+        '조국', '문재인', '박근혜', '지만원', '이준석', '추미애', '홍준표', '안철수',
+        '정진상', '김용', '유동규', '곽상도', '원희룡', '김만배', '남욱', '정영학',
+        '명태균', '강혜경', '이화영', '김성태'
+    ];
+
+    const detected = new Set<string>();
+
+    // 1. 이미 알려진 주요 공직자/사건 인명 검출
+    for (const name of knownPersons) {
+        if (text.includes(name)) {
+            detected.add(name);
+        }
+    }
+
+    // 2. 직책 및 호칭과 결합된 인명 검출 (예: "김현지 실장", "최재영 목사", "박원순 전 시장", "지만원 씨")
+    const titleRegex = /([김이박최정강조윤장임한신오서권황송류유홍고문양손배백허노심하곽성차주우구라민진지엄채원천방공현][가-힣]{1,2})\s*(?:실장|비서관|대통령|장관|차관|의원|대표|총장|지사|시장|구청장|목사|교수|변호사|판사|검사|기자|씨|여사|측)/g;
+    let match;
+    while ((match = titleRegex.exec(text)) !== null) {
+        const candidate = match[1];
+        if (candidate.length >= 2 && candidate.length <= 3) {
+            detected.add(candidate);
+        }
+    }
+
+    // 3. 괄호 안 인명 표기 검출 (예: 피고(지만원))
+    const bracketRegex = /\(([김이박최정강조윤장임한신오서권황송류유홍고문양손배백허노심하곽성차주우구라민진지엄채원천방공현][가-힣]{1,2})\)/g;
+    while ((match = bracketRegex.exec(text)) !== null) {
+        const candidate = match[1];
+        if (candidate.length >= 2 && candidate.length <= 3) {
+            detected.add(candidate);
+        }
+    }
+
+    return Array.from(detected);
+}
+
+// 텍스트 기반 5대 핵심 해시태그 스마트 추출기 (기존 태그 보존 및 본문 인명 최우선 가중치)
+function extractSmartHashtags(
+    title: string,
+    distortion: string,
+    primarySource: string,
+    existingHashtags: string[] = []
+): string[] {
+    // 0. 기존 해시태그 정제
+    const cleanExisting = (existingHashtags || [])
+        .map(t => String(t).replace(/^#/, '').trim())
+        .filter(Boolean);
+
+    // 이미 5개 이상 존재하면 기존 목록 그대로 유지
+    if (cleanExisting.length >= 5) {
+        return cleanExisting.slice(0, 5).map(t => `#${t}`);
+    }
+
     const fullText = normalizeHistoricalTerms(`${title} ${distortion} ${primarySource}`);
 
     // 1. 제외할 불용어 (시간부사, 동사, 형용사, 대명사, 일반 추상어, 접속사)
@@ -130,7 +185,7 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         '배경', '쟁점', '핵심', '호도'
     ]);
 
-    // 2. 가중치를 부여할 핵심 법률/사법/사건/인물 도메인 키워드
+    // 2. 가중치를 부여할 핵심 법률/사법/사건/도메인 키워드
     const domainBonusKeywords = [
         '518', '북한간첩', '간첩', '북한군', '지만원', '광주고법', '허위호도',
         '한동훈', '이재명', '농지', '농지법', '경자유전', '처분명령', '농사', '재반박',
@@ -138,6 +193,9 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         '직무관련성', '대가성', '청탁금지법', '김영란법', '경제적공동체', '포괄적권한', '신고의무', '신분범',
         '김건희', '최재영', '윤석열', '특가법', '공소시효', '수사의무', '기소', '불기소', '구속'
     ];
+
+    // 본문 및 텍스트에서 인명(Person) 추출 - 최우선 순위
+    const detectedPersons = extractPersonNames(fullText);
 
     const freqMap = new Map<string, number>();
 
@@ -152,6 +210,10 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         // 도메인 핵심어 보너스 (+6)
         if (domainBonusKeywords.some((k) => cleaned === k || cleaned.includes(k))) {
             weight += 6;
+        }
+        // 인명 보너스 (+15)
+        if (detectedPersons.includes(cleaned)) {
+            weight += 15;
         }
         // 전문 용어 길이 보너스 (3글자 이상: 알선수재, 직무관련성 등)
         if (cleaned.length >= 3) {
@@ -195,16 +257,27 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
         .filter(([word]) => !stopWords.has(word) && word.length >= 2 && (!/^\d+$/.test(word) || word === '518'))
         .sort((a, b) => b[1] - a[1]);
 
-    // 중복 및 부분 포함 단어 정제 (예: '뇌물'과 '뇌물죄' 중 더 구체적인 키워드 우선)
-    const picked: string[] = [];
+    // 결과 해시태그 목록 조립
+    // [우선순위 1]: 기존에 이미 등록된 해시태그 보존
+    const picked: string[] = [...cleanExisting];
+
+    // [우선순위 2]: 본문/제목에서 발견된 인명 추가
+    for (const person of detectedPersons) {
+        if (picked.length >= 5) break;
+        if (!picked.includes(person) && !stopWords.has(person)) {
+            picked.push(person);
+        }
+    }
+
+    // [우선순위 3]: 가중치 순 정렬된 핵심 단어 보충
     for (const [word] of sorted) {
+        if (picked.length >= 5) break;
         const isDuplicate = picked.some(
             (p) => p === word || (p.length > 2 && word.length > 2 && (p.includes(word) || word.includes(p)))
         );
         if (!isDuplicate) {
             picked.push(word);
         }
-        if (picked.length >= 5) break;
     }
 
     // 만약 5개 미만인 경우 도메인 후보군으로 안전 보충
@@ -370,7 +443,7 @@ function generateSmartDistortionDraft(title: string, articleContext: string = ''
 
 export async function POST(req: Request) {
     try {
-        const { title, source_url, distortion, primary_source, mode } = await req.json();
+        const { title, source_url, distortion, primary_source, mode, existing_hashtags } = await req.json();
 
         if (!title) {
             return NextResponse.json({ error: '안건 제목이 필요합니다.' }, { status: 400 });
@@ -382,6 +455,9 @@ export async function POST(req: Request) {
         if (mode === 'summarize_source' || (mode !== 'draft' && mode !== 'distortion_only' && primary_source && primary_source.trim().length > 10)) {
             const trimmedSource = primary_source.trim();
             const currentDistortion = distortion || '';
+            const cleanExistingTags = (Array.isArray(existing_hashtags) ? existing_hashtags : [])
+                .map((t: string) => String(t).replace(/^#/, '').trim())
+                .filter(Boolean);
 
             if (apiKey && process.env.GEMINI_API_KEY) {
                 const prompt = `
@@ -400,11 +476,15 @@ export async function POST(req: Request) {
    - 기계적인 불릿 포인트('• 객관적 팩트...', '• 공식 기록...') 같은 상투적 서식은 일절 쓰지 마세요.
    - AI 팩트 체크에 제시된 실질적 쟁점과 근거를 바탕으로 왜 이러한 결론이 나왔는지 시민들이 명확히 납득할 수 있는 2~3단락의 완성도 높은 서술문으로 작성하세요.
 
-3. [해시태그 5개 추출 지침]:
+3. [해시태그 5개 추출 및 기존 태그 보존 지침 - 절대 준수]:
+   - [기존 태그 보존]: 현재 사용자가 등록한 기존 해시태그 목록: [${cleanExistingTags.map(t => `#${t}`).join(', ')}]
+     -> 만약 기존 태그가 이미 5개 이상이면 기존 태그를 그대로 유지하세요.
+     -> 기존 태그가 1~4개이면, 기존 태그를 맨 앞에 유지하고 부족한 개수만큼만 새로 추가하여 총 5개를 맞추세요.
+   - [본문 내 인명 최우선 추가]: 본문(AI 팩트 체크 근거)이나 제목에 등장하는 인명(예: #김현지, #최재영, #지만원, #오세훈 등)이 있을 경우, 반드시 최우선 순위로 해시태그에 포함하세요.
    - '당시', '이후', '현재', '최근', '초기' 같은 시간/시점 일반 부사는 절대 해시태그로 추출하지 마세요.
    - '18', '20' 등 불완전한 단순 숫자는 금지하며, 맥락상 5·18인 경우 '#518'로 완전한 명사형으로 작성하세요.
    - '지으면', '뺏는다', '받은', '없다', '있는', '누군가에게', '하는' 같은 동사/형용사/어미 결합 형태는 절대 금지합니다.
-   - 반드시 사건과 쟁점의 본질을 대변하는 핵심 명사(예: #김현지, #인사개입, #부속실장, #비선실세, #국정감사 등)로만 정확히 5개를 선별하세요.
+   - 반드시 사건과 쟁점의 본질을 대변하는 핵심 명사로만 최종 5개를 작성하세요.
 
 - 검증 안건 제목: "${title}"
 - 왜곡된 주장/프레임: 
@@ -449,18 +529,29 @@ ${trimmedSource}
                                     .map((t: string) => `#${t}`);
                             }
 
-                            // 유효한 태그가 5개 미만이면 스마트 추출기로 보충
-                            const smartFallback = extractSmartHashtags(title, currentDistortion, trimmedSource);
-                            for (const fb of smartFallback) {
-                                if (geminiTags.length >= 5) break;
-                                if (!geminiTags.includes(fb)) {
-                                    geminiTags.push(fb);
+                            // 기존 태그를 최우선 유지하면서 중복 제거 및 부족분 보충
+                            const finalTags: string[] = cleanExistingTags.map(t => `#${t}`);
+                            for (const gt of geminiTags) {
+                                if (finalTags.length >= 5) break;
+                                if (!finalTags.includes(gt)) {
+                                    finalTags.push(gt);
+                                }
+                            }
+
+                            // 그래도 5개 미만이면 스마트 추출기(인명 감지 포함)로 보충
+                            if (finalTags.length < 5) {
+                                const smartFallback = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
+                                for (const fb of smartFallback) {
+                                    if (finalTags.length >= 5) break;
+                                    if (!finalTags.includes(fb)) {
+                                        finalTags.push(fb);
+                                    }
                                 }
                             }
 
                             return NextResponse.json({
                                 fact_summary: parsed.fact_summary,
-                                hashtags: geminiTags.slice(0, 5),
+                                hashtags: finalTags.slice(0, 5),
                             });
                         }
                     }
@@ -469,9 +560,9 @@ ${trimmedSource}
                 }
             }
 
-            // Fallback
+            // Fallback (스마트 요약기 및 인명 최우선 스마트 추출기)
             const fallbackSummary = generateFactSummaryFromEvidence(title, currentDistortion, trimmedSource);
-            const fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource);
+            const fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
             return NextResponse.json({
                 fact_summary: fallbackSummary,
                 hashtags: fallbackHashtags,

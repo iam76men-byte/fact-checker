@@ -140,6 +140,7 @@ export default function AdminFactModal({
                     primary_source: primarySource.trim(),
                     source_url: sourceUrl.trim(),
                     mode: 'summarize_source',
+                    existing_hashtags: hashtags,
                 }),
             });
 
@@ -150,11 +151,24 @@ export default function AdminFactModal({
                 setFactSummary(data.fact_summary);
             }
             if (Array.isArray(data.hashtags) && data.hashtags.length > 0) {
-                setHashtags(
-                    data.hashtags
-                        .map((t: string) => String(t).replace(/^#/, '').trim())
-                        .filter(Boolean)
-                );
+                const incoming = data.hashtags
+                    .map((t: string) => String(t).replace(/^#/, '').trim())
+                    .filter(Boolean);
+
+                // 이미 5개 등록되어 있는 경우 변경하지 않고 유지
+                if (hashtags.length >= 5) {
+                    // 기존 해시태그 유지
+                } else {
+                    // 기존 태그를 최우선 유지하고 부족한 개수(최대 5개까지)만 신규 태그로 보충
+                    const merged = [...hashtags];
+                    for (const tag of incoming) {
+                        if (merged.length >= 5) break;
+                        if (!merged.includes(tag)) {
+                            merged.push(tag);
+                        }
+                    }
+                    setHashtags(merged);
+                }
             }
         } catch (err: any) {
             alert('AI 팩트 체크 기반 사실 요약 실패: ' + err.message);
