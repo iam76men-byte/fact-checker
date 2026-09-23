@@ -31,9 +31,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {recaptchaSiteKey && (
           <Script
+            id="recaptcha-v3-script"
             src={`https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`}
             strategy="lazyOnload"
           />
+
         )}
       </head>
       <body className="min-h-full flex flex-col">
