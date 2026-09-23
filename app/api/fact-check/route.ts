@@ -219,39 +219,54 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
     return picked.slice(0, 5).map((w) => `#${w}`);
 }
 
-// AI 팩트 체크(근거 자료)를 기반으로 핵심 사실 요약 생성 (스마트 Fallback)
-function generateFactSummaryFromEvidence(title: string, distortion: string, primarySource: string) {
-    let verdict = '[사실 / 검증 완료]';
-    const sourceLower = primarySource.toLowerCase();
+// AI 팩트 체크(근거 자료)를 기반으로 핵심 사실 요약 생성 (검증 판정 결론 위주 스마트 요약기)
+function generateFactSummaryFromEvidence(title: string, distortion: string, primarySource: string): string {
+    let verdict = '대체로 사실';
+    let verdictSub = '핵심 사실관계 부합 및 객관적 근거 확인';
 
-    if (/위헌|불법|위법|사실\s*아님|거짓|왜곡|날조|차이|배척|기각|유죄|패소/i.test(primarySource)) {
-        if (/위헌으로\s*판단|위헌\s*소송|위헌\s*판결/i.test(primarySource)) {
-            verdict = '[대체로 사실 / 헌법·법리상 위헌 소지 인정]';
+    // 1. 내용 기반 판정 결론 판별
+    if (/위헌|불법|위법|사실\s*아님|거짓|왜곡|날조|차이|배척|기각|유죄|패소/i.test(primarySource) && !/사실에\s*부합|사실과\s*일치/i.test(primarySource)) {
+        verdict = '사실 아님';
+        verdictSub = '공적 기록 및 사법적 팩트 대조 결과 불일치';
+    } else if (/일부\s*사실|절반|혼재|복합적|해석의\s*차이|공방|가정\s*판단/i.test(primarySource)) {
+        if (/사실에\s*부합|일치|제도화/i.test(primarySource)) {
+            verdict = '대체로 사실';
+            verdictSub = '핵심 사실관계는 부합하나 배경 맥락에 해석 차이 존재';
         } else {
-            verdict = '[대체로 사실 아님 / 사료 대조 불일치]';
+            verdict = '절반의 사실';
+            verdictSub = '객관적 사실과 정치적·법리적 해석이 혼재된 사안';
         }
-    } else if (/일부\s*사실|절반|혼재|복합적|해석\s*차이/i.test(primarySource)) {
-        verdict = '[절반의 사실 / 맥락에 따른 해석 차이 존재]';
-    } else if (/사실로\s*확인|인정|일치|합헌|승소|무죄/i.test(primarySource)) {
-        verdict = '[사실 / AI 팩트 체크 일치]';
+    } else if (/사실에\s*부합|사실과\s*일치|인정|합헌/i.test(primarySource)) {
+        verdict = '사실';
+        verdictSub = '공문서 및 공식 통계 데이터와 명확히 일치';
     }
 
-    // AI 팩트 체크 텍스트 정리
-    const lines = primarySource.split('\n').map(l => l.trim()).filter(Boolean);
-    const conclusionLine = lines.find(l => /^결론|요약|판단/i.test(l)) || lines[lines.length - 1] || primarySource.slice(0, 150);
-    const cleanConclusion = conclusionLine.replace(/^(결론|요약|판단)[:：\s]*/i, '').trim();
+    // 2. 본문에서 핵심 문맥 라인 정제 추출
+    const rawLines = primarySource
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 5 && !/^[0-9]\.\s*(핵심|사실|결론|쟁점|요약)/.test(l));
 
-    return `(검증 판정 결론: ${verdict} AI 팩트 체크 및 공적 기록 검토 결과, ${cleanConclusion})
+    const cleanLines = rawLines
+        .map((l) => {
+            return l
+                .replace(/^[*•\-–]\s*/, '')
+                .replace(/^[가-힣a-zA-Z0-9\s]{2,15}[:：]\s*/, '')
+                .trim();
+        })
+        .filter((l) => l.length > 12);
 
-• 객관적 팩트 및 데이터 대조:
-  - AI 팩트 체크 검토 결과: ${lines[0] || '공적 기록물 및 관련 법리 대조 완료'}
-  - 쟁점 대조: 제기된 의혹·쟁점에 대해 객관적 사실관계를 근거로 검증함
+    const keyFact1 = cleanLines[0] || '공적 기록 및 관련 법리 대조 결과, 제기된 안건의 실체적 사실관계가 확인되었습니다.';
+    const keyFact2 = cleanLines.find((l, idx) => idx > 0 && (l.includes('수치') || l.includes('일치') || l.includes('확인') || l.includes('조례') || l.includes('제도') || l.includes('법원'))) || cleanLines[1] || '';
+    const keyContext = cleanLines.find((l, idx) => idx > 1 && (l.includes('반면') || l.includes('배경') || l.includes('성격') || l.includes('주장') || l.includes('갈등') || l.includes('다만'))) || cleanLines[2] || '';
 
-• 공식 기록 및 규정/절차:
-  - 관련 사료 및 법률·판례 원문에 따른 적법 절차 및 실체적 내용 반영 완료
+    let summaryText = `[검증 판정 결론: ${verdict} / ${verdictSub}]\n\n`;
+    summaryText += `AI 팩트 체크 및 공적 기록 검토 결과, ${keyFact1} ${keyFact2 ? keyFact2 : ''}\n\n`;
+    if (keyContext) {
+        summaryText += `다만 제기된 쟁점에 관하여는 ${keyContext}`;
+    }
 
-• 맥락 및 실체적 진실:
-  - ${cleanConclusion}`;
+    return summaryText.trim();
 }
 
 // 왜곡 쟁점 스마트 초안 생성기
@@ -292,16 +307,19 @@ export async function POST(req: Request) {
 당신은 대한민국 최고의 공공데이터 및 법률·공문서 교차검증 전문 팩트체커입니다.
 관리자가 검증을 위해 제출한 [AI 팩트 체크 (근거 자료)]의 원문 내용을 정밀 분석하여, [확인된 핵심 사실 (fact_summary)]과 [해시태그 5개 (hashtags)]를 작성해야 합니다.
 
-[작성 지침]
-1. 반드시 관리자가 제출한 AI 팩트 체크의 구체적인 내용, 판결/법리, 수치, 결론을 정확하게 반영하세요.
-2. 서두에는 반드시 판정 결론 [사실 / 대체로 사실 / 절반의 사실 / 대체로 사실 아님 / 사실 아님] 중 1차 사료에 가장 부합하는 것을 명시하고 핵심 요약을 1~2문장으로 서술하세요.
-3. 구체적인 사실 대조와 법리/통계적 근거를 바탕으로 3가지 항목(• 객관적 팩트 및 데이터 대조, • 공식 기록 및 규정/절차, • 맥락 및 실체적 진실)으로 나누어 일목요연하게 작성하세요.
-4. [해시태그 5개 추출 필수 지침 (매우 중요)]:
+[작성 지침 - 매우 중요]:
+1. [확인된 핵심 사실 (fact_summary) 작성 지침]:
+   - 반드시 첫 번째 줄은 [검증 판정 결론: 판정결과 / 한 줄 핵심 사유] 형식으로 시작하세요.
+     (판정결과 예시: '사실', '대체로 사실', '절반의 사실', '대체로 사실 아님', '사실 아님' 중 택1)
+     (예: [검증 판정 결론: 대체로 사실 / 서울시 정비구역 출구전략 및 대규모 직권해제 사실관계 부합])
+   - 상투적인 불릿 포인트('• 객관적 팩트 및 데이터 대조:', '• 공식 기록 및 규정/절차:' 등)와 같은 기계적인 서식을 일절 사용하지 마세요.
+   - 관리자가 제출한 [AI 팩트 체크 근거 자료]의 실제 수치, 공문서, 판결문, 조례, 행정 조치 등의 실질적 내용을 충실히 반영하여, "왜 이러한 판정 결론이 도출되었는지"를 시민들이 한눈에 납득할 수 있는 완성도 높은 2~3단락의 설명문 형태로 명쾌하게 서술하세요.
+2. [해시태그 5개 추출 지침]:
    - '당시', '이후', '현재', '최근', '초기' 같은 시간/시점 일반 부사는 절대 해시태그로 추출하지 마세요.
    - '18', '20' 등 불완전한 단순 숫자는 금지하며, 맥락상 5·18인 경우 '#518'로 완전한 명사형으로 작성하세요.
    - '지으면', '뺏는다', '받은', '없다', '있는', '누군가에게', '하는' 같은 동사/형용사/어미 결합 형태는 절대 금지합니다.
-   - 반드시 사건과 사법적 쟁점을 대변하는 핵심 명사(예: #518, #북한간첩, #지만원, #광주고법, #농지, #한동훈 등)로만 정확히 5개를 선별하세요.
-5. 제목이나 항목 외 불필요한 서두 인삿말은 생략하세요.
+   - 반드시 사건과 사법적 쟁점을 대변하는 핵심 명사(예: #오세훈, #박원순, #서울정비사업, #출구전략, #직권해제 등)로만 정확히 5개를 선별하세요.
+3. 제목이나 항목 외 불필요한 서두 인삿말은 생략하세요.
 
 - 검증 안건 제목: "${title}"
 - 왜곡된 주장/프레임: 
@@ -312,7 +330,7 @@ ${trimmedSource}
 
 반드시 아래 JSON 포맷으로만 답변하세요:
 {
-  "fact_summary": "(검증 판정 결론: [판정 결과] AI 팩트 체크 분석에 따른 핵심 요약)\\n\\n• 객관적 팩트 및 데이터 대조: (구체적 사실관계 요약)\\n• 공식 기록 및 규정/절차: (법령, 헌법, 판결문, 공문서 등 절차적 적법성 확인 내용)\\n• 맥락 및 실체적 진실: (규명하는 실체적 진실)",
+  "fact_summary": "[검증 판정 결론: (판정결과) / (한 줄 핵심 판정 사유)]\\n\\nAI 팩트 체크 및 공적 기록 검토 결과, (근거 자료에서 확인된 객관적 사실관계 및 수치·제도적 내용 2~3문장 서술)\\n\\n(의혹 프레임과 대조하여 왜 이 판정 결론이 타당한지 맥락과 이유를 명쾌하게 2~3문장 서술)",
   "hashtags": ["#핵심명사1", "#핵심명사2", "#핵심명사3", "#핵심명사4", "#핵심명사5"]
 }
 `;
