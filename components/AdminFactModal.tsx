@@ -64,7 +64,7 @@ export default function AdminFactModal({
 
     if (!isOpen) return null;
 
-    // 왜곡 쟁점 AI 초안 생성 헬퍼
+    // 왜곡 쟁점 AI 초안 생성 헬퍼 (리포트 제목 기반 검증 설계 초안)
     const generateDistortionOnly = async (targetTitle: string, targetUrl: string) => {
         if (!targetTitle.trim()) return;
         setGeneratingAI(true);
@@ -80,12 +80,16 @@ export default function AdminFactModal({
             });
             const data = await res.json();
             if (res.ok && data) {
-                setDistortion(data.distortion || '');
-                setPrimarySource(''); // 근거는 직접 입력하도록 비워둠
-                setFactSummary(data.fact_summary || '');
+                if (data.distortion) {
+                    setDistortion(data.distortion);
+                }
+                // 기존 사실 요약이 없을 때만 기본 안내 가이드 설정
+                if (!factSummary.trim() && data.fact_summary) {
+                    setFactSummary(data.fact_summary);
+                }
             }
         } catch (e) {
-            console.warn('의뢰 선택 시 왜곡 쟁점 자동 생성 오류:', e);
+            console.warn('제목 기반 검증 설계 AI 초안 생성 오류:', e);
         } finally {
             setGeneratingAI(false);
         }
@@ -165,12 +169,7 @@ export default function AdminFactModal({
             return;
         }
 
-        // 만약 AI 팩트 체크 근거가 이미 입력되어 있다면 사실 요약 및 해시태그 종합 수행
-        if (primarySource.trim()) {
-            await handleSummarizeEvidence();
-            return;
-        }
-
+        // 리포트 제목 기준으로 왜곡된 주장 / 프레임(어떤 내용을 검증할 것인가) 초안 생성
         await generateDistortionOnly(title, sourceUrl);
     };
 

@@ -283,22 +283,89 @@ function generateFactSummaryFromEvidence(title: string, distortion: string, prim
     return summaryText.trim();
 }
 
-// 왜곡 쟁점 스마트 초안 생성기
-function generateSmartDistortionDraft(title: string, articleContext: string = '') {
+// 왜곡 쟁점 및 핵심 검증 대상 스마트 초안 생성기 (리포트 제목 기반 정밀 분석)
+function generateSmartDistortionDraft(title: string, articleContext: string = ''): string {
+    const trimmedTitle = title.trim();
+
+    // 1. 제목 유형 분석 (질문형/속설, 의혹형, 발언형)
+    const isQuestion = /[?？]|사실인가|맞는가|진실은|사실일까|진짜일까/i.test(trimmedTitle);
+    const isAllegation = /의혹|논란|개입|의심|비선|수렴청정|허위|왜곡|날조|파문/i.test(trimmedTitle);
+
     let speaker = '';
-    const speakerMatch = title.match(/^([가-힣]{2,4}|[가-힣A-Za-z0-9\s]{2,10})\s*[,，"“'‘-]/);
-    if (speakerMatch) {
+    const speakerMatch = trimmedTitle.match(/^([가-힣]{2,4}|[가-힣A-Za-z0-9\s]{2,8})\s*[,，"“'‘-]/);
+    if (speakerMatch && !isAllegation) {
         speaker = speakerMatch[1].trim();
     }
 
-    const quoteMatches = [...title.matchAll(/["“'‘]([^"”'’]+)["”'’]/g)].map(m => m[1]);
+    const quoteMatches = [...trimmedTitle.matchAll(/["“'‘]([^"”'’]+)["”'’]/g)].map(m => m[1]);
     quoteMatches.sort((a, b) => b.length - a.length);
     const mainQuote = quoteMatches[0] || '';
 
-    let coreIssue = `${speaker || '당사자'}의 발언 및 보도 내용과 실제 사실관계·사법적 판단 간의 일치 여부`;
-    let circumstances = `• 발언/보도 요지: ${mainQuote ? `"${mainQuote}"` : title}\n• 제기된 정황: 관련 언론 보도 및 공방을 통해 제기된 핵심 의혹 사안`;
+    // 제목에서 불필요한 기호 제거한 핵심 주제어
+    const cleanTopic = trimmedTitle
+        .replace(/["“'‘”’?？]/g, '')
+        .replace(/^(오세훈|한동훈|이재명|윤석열|대통령실|야당|여당)[,，\s]*/, '')
+        .replace(/\s*(사실인가|맞는가|진실은|재반박|논란|의혹|일까|파문)$/, '')
+        .trim();
 
-    return `• 주장 배경: ${speaker ? `${speaker} 측의 발언 및 ` : ''}관련 언론 보도\n• 핵심 쟁점: ${coreIssue}\n• 제기된 정황:\n  ${circumstances}`;
+    let background = '';
+    let targets: string[] = [];
+    let direction = '';
+
+    if (isQuestion) {
+        // [질문형 / 대중 통념 속설 검증]
+        const isRealEstate = /부동산|집값|아파트|강남|청약|분양|매매|전세|불패/i.test(trimmedTitle);
+        const isHealth = /코로나|백신|치료|예방|효과|약|의학|질병|건강|소금물|민간요법/i.test(trimmedTitle);
+
+        if (isRealEstate) {
+            background = `부동산 시장 및 사회 전반에 널리 퍼진 대중적 통념('[${cleanTopic || trimmedTitle}]')과 이에 대한 대중·언론의 맹신`;
+            targets = [
+                `1. [${cleanTopic || trimmedTitle}] 명제가 과거 실거래 통계, 공적 지표 및 거시경제 변동 데이터와 부합하는지 여부`,
+                `2. 장기적 우상향 회복력과 '하락 없는 영구 불패' 개념 간의 실체적 괴리 및 예외적 침체기 사실관계 규명`
+            ];
+            direction = `국토교통부 실거래 통계, 한국은행 거시경제 지표 및 공공데이터를 교차 대조하여 해당 명제의 실체적 진위 검증`;
+        } else if (isHealth) {
+            background = `온라인 커뮤니티 및 SNS를 통해 널리 유포된 [${cleanTopic || trimmedTitle}] 관련 속설과 시민 혼선`;
+            targets = [
+                `1. [${cleanTopic || trimmedTitle}] 주장이 질병관리청, WHO 등 공인 보건의료 당국의 임상·실험 데이터로 입증되었는지 여부`,
+                `2. 민간요법이나 잘못된 상식이 의학적 근거 없이 과학적 사실로 왜곡 유포되었는지 여부`
+            ];
+            direction = `질병관리청, 식품의약품안전처 및 공인 의학 학술 데이터를 바탕으로 효능의 객관적 진위 검증`;
+        } else {
+            background = `사회 공론장 및 대중 사이에서 널리 회자되는 [${cleanTopic || trimmedTitle}] 관련 통념과 진위 공방`;
+            targets = [
+                `1. [${cleanTopic || trimmedTitle}] 명제가 공인된 1차 공적 기록 및 객관적 통계 데이터와 일치하는지 여부`,
+                `2. 역사적 사실이나 맥락의 단편적 왜곡으로 인한 오해 유발 소지가 있는지 여부`
+            ];
+            direction = `공인된 공적 기록물, 전문 연구 기관 보고서 및 통계 데이터를 교차 대조하여 실체적 진위 검증`;
+        }
+    } else if (isAllegation) {
+        // [의혹 / 논란 검증형] - 예: 김현지 실장 "인사 개입 및 국정 수렴청정" 의혹
+        background = `정치권 및 언론 매체를 통해 제기된 [${cleanTopic || trimmedTitle}] 관련 의혹 제기와 이에 대한 진영 간 책임 공방`;
+        targets = [
+            `1. 제기된 의혹(${mainQuote ? `"${mainQuote}"` : cleanTopic})을 입증할 수 있는 공문서, 사법부 판단, 구체적 물증의 실재 여부`,
+            `2. 관계 당사자 측의 해명 및 정상 직무 범위 부합 여부와 정치적 프레임 간의 사실관계 교차 대조`
+        ];
+        direction = `공식 직무 규정, 사법부 판결문, 공문서 및 당사자 진술을 교차 대조하여 단순 추측과 실체적 사실관계 구분 검증`;
+    } else if (speaker && mainQuote) {
+        // [정치인/주요 인물 발언형] - 예: 오세훈 "박원순 前시장이 서울정비사업 해제 유도"
+        background = `${speaker} 측의 공개 발언("${mainQuote}") 및 이에 따른 언론 보도로 촉발된 정비·정책적 공방`;
+        targets = [
+            `1. 발언에서 거론된 핵심 사실관계("${mainQuote}") 관련 수치, 제도, 행정 조치의 실재 여부`,
+            `2. 발언의 인과관계 주장(예: 특정 행정 조치로 인한 현재의 공급 차질 등)이 공적 기록에 부합하는지 객관적 타당성 검증`
+        ];
+        direction = `관계 부처 및 지자체 공식 행정 백서, 조례 개정 이력, 공식 통계자료를 교차검증하여 발언 내용의 사실 부합성 검증`;
+    } else {
+        // [일반 안건]
+        background = `언론 보도 및 공론장을 통해 제기된 [${trimmedTitle}] 관련 주요 쟁점`;
+        targets = [
+            `1. 안건의 핵심 주장 및 전제 조건이 공적 기록물 및 통계 데이터와 일치하는지 여부`,
+            `2. 사실관계 왜곡이나 맥락 누락으로 인한 오해 유발 소지가 있는지 여부`
+        ];
+        direction = `원천 1차 사료와 공공데이터를 기반으로 제기된 주장의 객관적 사실 여부 검증`;
+    }
+
+    return `• 안건 검증 배경:\n  ${background}\n\n• 핵심 검증 대상 (어떤 내용을 검증할 것인가):\n  ${targets.join('\n  ')}\n\n• 검증 방향 및 정황:\n  ${direction}`;
 }
 
 export async function POST(req: Request) {
@@ -312,7 +379,7 @@ export async function POST(req: Request) {
         const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
         // MODE 2: 관리자가 제출한 AI 팩트 체크 근거를 바탕으로 "확인된 핵심 사실 (fact_summary)" 요약 및 해시태그 5개 생성
-        if (mode === 'summarize_source' || (primary_source && primary_source.trim().length > 10)) {
+        if (mode === 'summarize_source' || (mode !== 'draft' && mode !== 'distortion_only' && primary_source && primary_source.trim().length > 10)) {
             const trimmedSource = primary_source.trim();
             const currentDistortion = distortion || '';
 
@@ -411,7 +478,7 @@ ${trimmedSource}
             });
         }
 
-        // MODE 1: 의뢰 선택 시 왜곡된 주장/프레임 초안 생성 (1차 사료는 관리자가 입력하도록 비워둠)
+        // MODE 1: 리포트 제목 기반 검증 설계 및 왜곡된 주장/프레임(어떤 내용을 검증할 것인가) 초안 생성
         let articleContext = '';
         if (source_url) {
             articleContext = await fetchArticleText(source_url);
@@ -419,16 +486,36 @@ ${trimmedSource}
 
         if (apiKey && process.env.GEMINI_API_KEY) {
             const prompt = `
-당신은 공공데이터와 공적 기록물 기반 공익 팩트체크 아카이브의 전문 분석관입니다.
-주어진 안건 제목과 기사 내용을 바탕으로, [왜곡된 주장 / 프레임 (distortion)]을 구조화하여 작성하세요.
-관리자가 1차 사료를 직접 입력할 예정이므로, 1차 사료(primary_source)는 빈 문자열("")로 반환하세요.
+당신은 대한민국 최고의 공공데이터와 공적 기록물 기반 공익 팩트체크 아카이브의 전문 수석 분석관입니다.
+검증 안건 제목: "${title}"
+관련 기사 본문 요약: "${articleContext || '기사 본문 없음'}"
 
-- 검증 안건 제목: "${title}"
-- 관련 기사 본문 요약: "${articleContext || '기사 본문 없음'}"
+주어진 안건 제목을 정밀 분석하여, [왜곡된 주장 / 프레임] 필드에 들어갈 **'어떤 내용에 대해 검증을 진행할 것인가'에 관한 구조화된 검증 설계 요약문**을 작성하세요.
+
+[필수 작성 및 구조화 지침 - 절대 준수]:
+1. "관련 언론 보도", "당사자의 발언 및 보도 내용과 실제 사실관계·사법적 판단 간의 일치 여부", "사실 여부 확인"과 같은 무의미하고 상투적인 기계적 템플릿 문구는 절대로 쓰지 마세요.
+2. 리포트 제목이 무엇을 묻거나 주장하고 있는지 맥락을 파악하여, "어떤 내용을 검증할 것인가"를 명확하고 구체적인 항목(1번, 2번)으로 도출하세요.
+   - [질문형/속설형 제목 (예: '강남불패 사실인가?')]: 
+     해당 대중적 통념·속설이 과거 IMF/금융위기 등 거시경제 충격기 실거래 통계와 부합하는지, '하락 없는 영구 불패'라는 맹신과 '장기적 우상향 회복력' 간의 실체적 괴리를 규명하는 구체적 검증 대상을 설정하세요.
+   - [인물 발언형 제목 (예: 특정인의 발언/공방)]: 
+     발언에서 거론된 핵심 수치·행정 조치·사건의 실재 여부 및 인과관계 왜곡이나 맥락 누락 여부를 검증 대상으로 설정하세요.
+   - [의혹/논란형 제목 (예: 비선, 인사 개입, 특혜 의혹)]: 
+     제기된 의혹을 입증할 객관적 물증이나 공문서·사법 판단의 존재 여부와 정상 직무 범위 부합 여부를 검증 대상으로 설정하세요.
+
+3. 반드시 다음 3단계 구조로 작성하세요:
+• 안건 검증 배경:
+  (제목의 주제가 왜 사회적/정책적/경제적으로 화두가 되었는지, 대중적 통념 또는 언론 보도 맥락을 1~2문장으로 구체적 서술)
+
+• 핵심 검증 대상 (어떤 내용을 검증할 것인가):
+  1. (제목의 핵심 쟁점과 관련된 객관적 통계 데이터, 공문서, 규정, 사법 판단의 실재 여부)
+  2. (인과관계 왜곡, 맥락 누락, 과장이나 맹신이 개입되었는지 여부)
+
+• 검증 방향 및 정황:
+  (국토교통부 실거래 통계, 공공데이터, 한국은행 지표, 행정 백서, 사법부 판결문 등 어떤 1차 사료를 교차 대조하여 진위를 판별할 것인지 명시)
 
 반드시 아래 JSON 포맷으로만 답변하세요:
 {
-  "distortion": "• 주장 배경: (의혹/논란이 불거진 계기 및 발언자/언론 보도 출처)\\n• 핵심 쟁점: (이 안건에서 검증해야 할 가장 본질적인 사실관계 쟁점)\\n• 제기된 정황: (의혹 측에서 사실이라고 주장하는 구체적 정황, 인용 발언, 수치 명시)",
+  "distortion": "• 안건 검증 배경:\\n  (배경 내용)\\n\\n• 핵심 검증 대상 (어떤 내용을 검증할 것인가):\\n  1. (검증 대상 1)\\n  2. (검증 대상 2)\\n\\n• 검증 방향 및 정황:\\n  (검증 방향)",
   "primary_source": "",
   "fact_summary": "🏛️ 아래 'AI 팩트 체크'에 판결문, 공문서, 통계 등 근거 자료를 입력하신 후 [✨ AI 팩트 체크 기반 핵심 사실 요약 생성] 버튼을 누르시면, AI가 근거를 분석하여 객관적 사실과 해시태그를 자동으로 생성합니다."
 }
