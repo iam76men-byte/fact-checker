@@ -422,10 +422,19 @@ function generateSmartDistortionDraft(title: string, articleContext: string = ''
         direction = `공식 직무 규정, 사법부 판결문, 공문서 및 당사자 진술을 교차 대조하여 단순 추측과 실체적 사실관계 구분 검증`;
     } else if (speaker && mainQuote) {
         // [주요 인물/기관 발언형]
+        const isCourtOrRuling = /고법|지법|대법원|재판부|판결|판결문|법원|사법/i.test(trimmedTitle);
+        const isHistoricalDistortion = /518|5·18|간첩|북한군|침투|학살/i.test(trimmedTitle);
         const isLegalOrConstitutional = /헌법|위헌|합헌|법률|대법원|사법|법원|임명권|재제청|검찰|수사|기소|불기소|판결/i.test(trimmedTitle);
         const isPolicyOrRealEstate = /정비|재개발|공급|부동산|아파트|해제|규제|세금/i.test(trimmedTitle);
 
-        if (isLegalOrConstitutional) {
+        if (isCourtOrRuling && isHistoricalDistortion) {
+            background = `${speaker || '사법부'} 판결문 문구("${mainQuote}")를 맥락 없이 단편적으로 인용하여 역사적 사실관계를 왜곡·호도하려는 언론 보도 및 정황`;
+            targets = [
+                `1. 법원 판결문 원문에서 해당 표현("${mainQuote}")이 역사적 실체로 공인한 것인지, 아니면 피고인의 주장을 탄핵하기 위한 가정적 판단이나 반론 논박 과정의 일부인지 여부`,
+                `2. 사법부의 확정 판결 및 공식 국가 조사 결과의 일관된 사실 판단과 일치하는지 여부`
+            ];
+            direction = `법원 판결문 원문 전문과 공인된 공적 조사 보고서를 대조하여 판결 취지 왜곡 여부 교차 검증`;
+        } else if (isLegalOrConstitutional) {
             background = `${speaker} 측의 공식 발표("${mainQuote}") 및 이에 따른 헌법적 권한쟁의와 법리적 공방`;
             targets = [
                 `1. 발언에서 거론된 위헌·위법 주장("${mainQuote}")이 대한민국 헌법 조항, 법원조직법 규정 및 사법부 판례에 부합하는지 여부`,
@@ -574,9 +583,7 @@ ${trimmedSource}
                                 }
                             }
 
-                            const updatedDistortion = generateSmartDistortionDraft(title, trimmedSource);
                             return NextResponse.json({
-                                distortion: updatedDistortion,
                                 fact_summary: parsed.fact_summary,
                                 hashtags: finalTags.slice(0, 5),
                             });
@@ -588,7 +595,6 @@ ${trimmedSource}
             }
 
             // Fallback (스마트 요약기 및 인명 최우선 스마트 추출기)
-            const fallbackDistortion = generateSmartDistortionDraft(title, trimmedSource);
             const fallbackSummary = generateFactSummaryFromEvidence(title, currentDistortion, trimmedSource);
             let fallbackHashtags: string[];
             if (cleanExistingTags.length >= 5) {
@@ -597,7 +603,6 @@ ${trimmedSource}
                 fallbackHashtags = extractSmartHashtags(title, currentDistortion, trimmedSource, cleanExistingTags);
             }
             return NextResponse.json({
-                distortion: fallbackDistortion,
                 fact_summary: fallbackSummary,
                 hashtags: fallbackHashtags.slice(0, 5),
             });
