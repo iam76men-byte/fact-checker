@@ -221,24 +221,30 @@ function extractSmartHashtags(title: string, distortion: string, primarySource: 
 
 // AI 팩트 체크(근거 자료)를 기반으로 핵심 사실 요약 생성 (검증 판정 결론 위주 스마트 요약기)
 function generateFactSummaryFromEvidence(title: string, distortion: string, primarySource: string): string {
-    let verdict = '대체로 사실';
-    let verdictSub = '핵심 사실관계 부합 및 객관적 근거 확인';
+    let verdict = '절반의 사실';
+    let verdictSub = '추측과 정황·정치적 주장은 존재하나 실체적 진실 미확정';
 
-    // 1. 내용 기반 판정 결론 판별
-    if (/위헌|불법|위법|사실\s*아님|거짓|왜곡|날조|차이|배척|기각|유죄|패소/i.test(primarySource) && !/사실에\s*부합|사실과\s*일치/i.test(primarySource)) {
+    // 1. 내용 기반 판정 결론 엄격 판별
+    // (1) 명백한 허위/위헌/불법/기각 등 사법적 배척이 확인된 경우
+    const hasDefinitiveFalse = /위헌으로\s*판단|법원에서\s*배척|명백한\s*허위|날조|사실\s*아님/i.test(primarySource);
+    // (2) 공문서, 판결문, 공식 통계, 백서, 수사결과 등 객관적 실증 물증이 존재하는 경우
+    const hasHardEvidence = /판결문|법원\s*판결|수사\s*결과|감사원\s*감사|공식\s*통계|백서|조례\s*개정|사실에\s*부합|사실과\s*일치/i.test(primarySource);
+    // (3) 일방의 주장, 의혹 제기, 풍문, 설, 공방, 프레임, 부인 위주의 서술인지 검사
+    const isAllegationOnly = /의혹|주장|거론|비판|프레임|공세|추측|설\s*등|부인하고\s*있|입장입니다/i.test(primarySource);
+
+    if (hasDefinitiveFalse) {
         verdict = '사실 아님';
-        verdictSub = '공적 기록 및 사법적 팩트 대조 결과 불일치';
-    } else if (/일부\s*사실|절반|혼재|복합적|해석의\s*차이|공방|가정\s*판단/i.test(primarySource)) {
-        if (/사실에\s*부합|일치|제도화/i.test(primarySource)) {
-            verdict = '대체로 사실';
-            verdictSub = '핵심 사실관계는 부합하나 배경 맥락에 해석 차이 존재';
-        } else {
-            verdict = '절반의 사실';
-            verdictSub = '객관적 사실과 정치적·법리적 해석이 혼재된 사안';
-        }
-    } else if (/사실에\s*부합|사실과\s*일치|인정|합헌/i.test(primarySource)) {
+        verdictSub = '사법적·객관적 근거에 부합하지 않는 허위 의혹';
+    } else if (hasHardEvidence && !isAllegationOnly) {
         verdict = '사실';
-        verdictSub = '공문서 및 공식 통계 데이터와 명확히 일치';
+        verdictSub = '공식 공문서 및 객관적 입증 자료와 일치';
+    } else if (hasHardEvidence && isAllegationOnly) {
+        verdict = '대체로 사실';
+        verdictSub = '핵심 사실관계는 확인되나 세부 인과관계에 공방 존재';
+    } else {
+        // 객관적 물증 없이 추측/정황/정치적 주장/부인만 대립하는 경우 (사용자 지적 원칙 반영)
+        verdict = '절반의 사실';
+        verdictSub = '추측과 정황·정치적 주장은 존재하나 객관적 실증 근거 부재';
     }
 
     // 2. 본문에서 핵심 문맥 라인 정제 추출
@@ -256,14 +262,22 @@ function generateFactSummaryFromEvidence(title: string, distortion: string, prim
         })
         .filter((l) => l.length > 12);
 
-    const keyFact1 = cleanLines[0] || '공적 기록 및 관련 법리 대조 결과, 제기된 안건의 실체적 사실관계가 확인되었습니다.';
-    const keyFact2 = cleanLines.find((l, idx) => idx > 0 && (l.includes('수치') || l.includes('일치') || l.includes('확인') || l.includes('조례') || l.includes('제도') || l.includes('법원'))) || cleanLines[1] || '';
-    const keyContext = cleanLines.find((l, idx) => idx > 1 && (l.includes('반면') || l.includes('배경') || l.includes('성격') || l.includes('주장') || l.includes('갈등') || l.includes('다만'))) || cleanLines[2] || '';
+    const keyFact1 = cleanLines[0] || '공적 기록 검토 결과, 제기된 안건에 관한 배경 정황이 확인되었습니다.';
+    const keyFact2 = cleanLines.find((l, idx) => idx > 0 && (l.includes('수치') || l.includes('일치') || l.includes('확인') || l.includes('조례') || l.includes('제도') || l.includes('법원') || l.includes('이동') || l.includes('보좌'))) || cleanLines[1] || '';
+    const keyContext = cleanLines.find((l, idx) => idx > 1 && (l.includes('반면') || l.includes('배경') || l.includes('성격') || l.includes('주장') || l.includes('갈등') || l.includes('부인') || l.includes('해명') || l.includes('입장'))) || cleanLines[2] || '';
 
     let summaryText = `[검증 판정 결론: ${verdict} / ${verdictSub}]\n\n`;
-    summaryText += `AI 팩트 체크 및 공적 기록 검토 결과, ${keyFact1} ${keyFact2 ? keyFact2 : ''}\n\n`;
-    if (keyContext) {
-        summaryText += `다만 제기된 쟁점에 관하여는 ${keyContext}`;
+
+    if (!hasHardEvidence && isAllegationOnly) {
+        // 물증 없이 정황/추측만 있는 경우의 명확한 팩트체크 요약문
+        summaryText += `AI 팩트 체크 및 공적 기록 검토 결과, ${keyFact1} ${keyFact2 ? keyFact2 : ''}\n\n`;
+        summaryText += `이에 대해 관계 당국 및 당사자 측은 정상적인 직무 수행 및 조직 개편이라며 관련 의혹을 전면 부인하고 있습니다. 팩트체크의 기본 원칙상 일방의 추측과 정황, 정치적 주장이 존재하더라도 이를 실체적 진실로 확정할 수 있는 객관적 물증이나 공적 조사 결과가 부재하므로 온전한 '사실(Fact)'로 단정할 수 없습니다.`;
+    } else {
+        // 객관적 근거가 있는 경우의 설명문
+        summaryText += `AI 팩트 체크 및 공적 기록 검토 결과, ${keyFact1} ${keyFact2 ? keyFact2 : ''}\n\n`;
+        if (keyContext) {
+            summaryText += `다만 제기된 쟁점에 관하여는 ${keyContext}`;
+        }
     }
 
     return summaryText.trim();
@@ -307,19 +321,23 @@ export async function POST(req: Request) {
 당신은 대한민국 최고의 공공데이터 및 법률·공문서 교차검증 전문 팩트체커입니다.
 관리자가 검증을 위해 제출한 [AI 팩트 체크 (근거 자료)]의 원문 내용을 정밀 분석하여, [확인된 핵심 사실 (fact_summary)]과 [해시태그 5개 (hashtags)]를 작성해야 합니다.
 
-[작성 지침 - 매우 중요]:
-1. [확인된 핵심 사실 (fact_summary) 작성 지침]:
-   - 반드시 첫 번째 줄은 [검증 판정 결론: 판정결과 / 한 줄 핵심 사유] 형식으로 시작하세요.
-     (판정결과 예시: '사실', '대체로 사실', '절반의 사실', '대체로 사실 아님', '사실 아님' 중 택1)
-     (예: [검증 판정 결론: 대체로 사실 / 서울시 정비구역 출구전략 및 대규모 직권해제 사실관계 부합])
-   - 상투적인 불릿 포인트('• 객관적 팩트 및 데이터 대조:', '• 공식 기록 및 규정/절차:' 등)와 같은 기계적인 서식을 일절 사용하지 마세요.
-   - 관리자가 제출한 [AI 팩트 체크 근거 자료]의 실제 수치, 공문서, 판결문, 조례, 행정 조치 등의 실질적 내용을 충실히 반영하여, "왜 이러한 판정 결론이 도출되었는지"를 시민들이 한눈에 납득할 수 있는 완성도 높은 2~3단락의 설명문 형태로 명쾌하게 서술하세요.
-2. [해시태그 5개 추출 지침]:
+[팩트체크 판정 및 요약 지침 - 절대 준수]:
+1. [판정 엄격성 원칙 (핵심)]:
+   - 구체적인 공문서, 사법부 확정 판결문, 공식 통계, 객관적 물증 없이 "일방의 정치적 주장", "의혹 제기", "풍문/설", "정황성 비판" 및 이에 대한 "당사자의 부인"만 존재하는 사안은 절대로 '사실'이나 '대체로 사실'로 판정하지 마세요.
+   - 이러한 사안은 반드시 [검증 판정 결론: 절반의 사실 / 추측과 정황·정치적 주장은 존재하나 실체적 진실 미확정] 또는 [검증 판정 결론: 사실 아님 / 실체적 입증 근거 없는 일방적 의혹 제기]로 엄격히 판정해야 합니다.
+   - 서술 시에도 "추측과 정황, 정치적 주장은 존재하지만 실체적 진실로 확정할 수 있는 객관적 근거가 없으므로 온전한 사실(Fact)로 규정할 수 없다"는 점을 명확히 밝히세요.
+
+2. [확인된 핵심 사실 (fact_summary) 형식]:
+   - 반드시 첫 번째 줄은 [검증 판정 결론: (판정결과) / (한 줄 핵심 판정 사유)] 형식으로 시작하세요.
+     (판정결과: '사실', '대체로 사실', '절반의 사실', '대체로 사실 아님', '사실 아님' 중 택1)
+   - 기계적인 불릿 포인트('• 객관적 팩트...', '• 공식 기록...') 같은 상투적 서식은 일절 쓰지 마세요.
+   - AI 팩트 체크에 제시된 실질적 쟁점과 근거를 바탕으로 왜 이러한 결론이 나왔는지 시민들이 명확히 납득할 수 있는 2~3단락의 완성도 높은 서술문으로 작성하세요.
+
+3. [해시태그 5개 추출 지침]:
    - '당시', '이후', '현재', '최근', '초기' 같은 시간/시점 일반 부사는 절대 해시태그로 추출하지 마세요.
    - '18', '20' 등 불완전한 단순 숫자는 금지하며, 맥락상 5·18인 경우 '#518'로 완전한 명사형으로 작성하세요.
    - '지으면', '뺏는다', '받은', '없다', '있는', '누군가에게', '하는' 같은 동사/형용사/어미 결합 형태는 절대 금지합니다.
-   - 반드시 사건과 사법적 쟁점을 대변하는 핵심 명사(예: #오세훈, #박원순, #서울정비사업, #출구전략, #직권해제 등)로만 정확히 5개를 선별하세요.
-3. 제목이나 항목 외 불필요한 서두 인삿말은 생략하세요.
+   - 반드시 사건과 쟁점의 본질을 대변하는 핵심 명사(예: #김현지, #인사개입, #부속실장, #비선실세, #국정감사 등)로만 정확히 5개를 선별하세요.
 
 - 검증 안건 제목: "${title}"
 - 왜곡된 주장/프레임: 
@@ -330,7 +348,7 @@ ${trimmedSource}
 
 반드시 아래 JSON 포맷으로만 답변하세요:
 {
-  "fact_summary": "[검증 판정 결론: (판정결과) / (한 줄 핵심 판정 사유)]\\n\\nAI 팩트 체크 및 공적 기록 검토 결과, (근거 자료에서 확인된 객관적 사실관계 및 수치·제도적 내용 2~3문장 서술)\\n\\n(의혹 프레임과 대조하여 왜 이 판정 결론이 타당한지 맥락과 이유를 명쾌하게 2~3문장 서술)",
+  "fact_summary": "[검증 판정 결론: (판정결과) / (한 줄 핵심 판정 사유)]\\n\\nAI 팩트 체크 및 공적 기록 검토 결과, (근거 자료에서 확인된 사실관계 및 상황 요약)\\n\\n(의혹 프레임과 실체적 진실의 부합 여부, 물증 유무에 따른 판정 사유를 명쾌하게 서술)",
   "hashtags": ["#핵심명사1", "#핵심명사2", "#핵심명사3", "#핵심명사4", "#핵심명사5"]
 }
 `;
